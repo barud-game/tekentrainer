@@ -123,14 +123,106 @@
     lijn(ctx, { x: P.x - o.v.x * half, y: P.y - o.v.y * half }, { x: P.x + o.v.x * half, y: P.y + o.v.y * half });
   }
 
-  function tekenOpdracht(ctx, o, vlak) {
-    let px = Math.round(H.clamp(Math.min(vlak.w, vlak.h) * 0.055, 14, 26));
+  // Taaksymbool: groot pictogram linksboven (vaste plek), tekst wordt een kleine ondertitel ernaast.
+  function symboolLabel(o) {
+    if (o.soort === 'kopieer') return o.k === 1 ? '=' : o.k === 0.5 ? '½×' : String(o.k).replace('.', ',') + '×';
+    if (!o.gelijk) return o.ratio[0] + ':' + o.ratio[1];
+    return o.fracs.length === 1 ? '½' : '1/' + (o.fracs.length + 1);
+  }
+
+  function tekenSymbool(ctx, o, vlak, x, y, S) {
+    const kl = vlak.kleur;
+    const p = S * 0.13, x0 = x + p, W = S - 2 * p, x1 = x0 + W;
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.setLineDash([]);
+    ctx.strokeStyle = kl.hulp;
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(x, y, S, S);
+    ctx.strokeStyle = kl.tekst;
+    ctx.lineWidth = Math.max(2.5, S * 0.05);
+    const tk = S * 0.1;
+    const verticaal = (px, cy, h) => lijn(ctx, { x: px, y: cy - h }, { x: px, y: cy + h });
+    if (o.soort === 'kopieer') {
+      // bovenste referentielijn, eronder de te tekenen lijn (k× zo lang) vanaf de stip
+      const eenheid = W * 0.4, yr = y + S * 0.2, yc = y + S * 0.48;
+      lijn(ctx, { x: x0, y: yr }, { x: x0 + eenheid, y: yr });
+      verticaal(x0, yr, tk); verticaal(x0 + eenheid, yr, tk);
+      ctx.strokeStyle = kl.hulp;
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([3, 3]);
+      lijn(ctx, { x: x0 + eenheid, y: yr + tk }, { x: x0 + eenheid, y: yc - tk });
+      ctx.setLineDash([]);
+      ctx.strokeStyle = kl.accent;
+      ctx.lineWidth = Math.max(2.5, S * 0.05);
+      lijn(ctx, { x: x0, y: yc }, { x: x0 + o.k * eenheid, y: yc });
+      verticaal(x0 + o.k * eenheid, yc, tk);
+      ctx.fillStyle = kl.accent;
+      ctx.beginPath(); ctx.arc(x0, yc, S * 0.055, 0, Math.PI * 2); ctx.fill();
+    } else if (o.soort === 'rechthoek') {
+      const yt = y + S * 0.12, yb = y + S * 0.58;
+      ctx.strokeRect(x0, yt, W, yb - yt);
+      ctx.strokeStyle = kl.accent;
+      for (const f of o.fracs) {
+        if (o.zijde === 'hoogte') lijn(ctx, { x: x0, y: yt + (yb - yt) * f }, { x: x1, y: yt + (yb - yt) * f });
+        else lijn(ctx, { x: x0 + W * f, y: yt }, { x: x0 + W * f, y: yb });
+      }
+    } else {
+      const cy = y + S * 0.36;
+      if (o.gelijk) {
+        lijn(ctx, { x: x0, y: cy }, { x: x1, y: cy });
+        verticaal(x0, cy, tk); verticaal(x1, cy, tk);
+        ctx.strokeStyle = kl.accent;
+        const n = o.fracs.length + 1;
+        for (let i = 1; i < n; i++) verticaal(x0 + W * i / n, cy, n === 2 ? tk * 1.7 : tk * 1.3);
+      } else {
+        const xd = x0 + W * o.fracs[0];
+        ctx.lineWidth = Math.max(4, S * 0.09);
+        ctx.strokeStyle = kl.accent;
+        lijn(ctx, { x: x0, y: cy }, { x: xd, y: cy });
+        ctx.lineWidth = Math.max(2.5, S * 0.05);
+        ctx.strokeStyle = kl.tekst;
+        lijn(ctx, { x: xd, y: cy }, { x: x1, y: cy });
+        verticaal(x0, cy, tk); verticaal(x1, cy, tk);
+        ctx.strokeStyle = kl.accent;
+        verticaal(xd, cy, tk * 1.6);
+      }
+    }
+    ctx.fillStyle = kl.tekst;
+    ctx.font = '700 ' + Math.round(S * 0.24) + 'px ' + FONT;
     ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    ctx.font = '600 ' + px + 'px ' + FONT;
-    while (px > 11 && ctx.measureText(o.tekst).width > vlak.w * 0.94) { px--; ctx.font = '600 ' + px + 'px ' + FONT; }
+    ctx.textBaseline = 'middle';
+    ctx.fillText(symboolLabel(o), x + S / 2, y + S * 0.83);
+    ctx.restore();
+  }
+
+  function tekenOpdracht(ctx, o, vlak) {
+    const m = Math.min(vlak.w, vlak.h);
+    const S = Math.round(H.clamp(m * 0.1, 48, 60));
+    const x = 10, y = 8;
+    tekenSymbool(ctx, o, vlak, x, y, S);
+    // korte ondertitel rechts van het symbool, maximaal 2 regels
+    const tx = x + S + 10, breed = Math.max(40, vlak.w - tx - 10);
+    let px = Math.round(H.clamp(m * 0.032, 12, 16));
+    let regels;
+    for (;;) {
+      ctx.font = '500 ' + px + 'px ' + FONT;
+      regels = [];
+      let huidig = '';
+      for (const wrd of o.tekst.split(' ')) {
+        const proef = huidig ? huidig + ' ' + wrd : wrd;
+        if (huidig && ctx.measureText(proef).width > breed) { regels.push(huidig); huidig = wrd; } else huidig = proef;
+      }
+      regels.push(huidig);
+      if (regels.length <= 2 || px <= 11) break;
+      px--;
+    }
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
     ctx.fillStyle = vlak.kleur.tekst;
-    ctx.fillText(o.tekst, vlak.w / 2, Math.max(8, vlak.h * 0.035));
+    const lh = px * 1.25, y0 = y + S / 2 - (regels.length - 1) * lh / 2;
+    regels.forEach((r, i) => ctx.fillText(r, tx, y0 + i * lh));
   }
 
   // Referentie (lijn/rechthoek); bij verborgen alleen de eindmarkeringen van een verdeel-opgave.

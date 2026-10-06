@@ -53,8 +53,21 @@ Tekentrainer.registreer({
   // De app tekent de score en tip zelf; scorePlek bepaalt waar (standaard midden van het vlak).
   tekenUitslag(ctx, opgave, streken, uitslag, vlak) {},
   scorePlek(opgave, vlak) { return { x: vlak.w / 2, y: vlak.h / 2 }; },  // optioneel
+
+  // Na de uitslag (optioneel): geef 'stop' terug om niet automatisch door te gaan;
+  // de app wacht dan op een tik op het vlak en roept daarna nieuweOpgave() aan.
+  naUitslag(opgave, uitslag) {},
 });
 ```
+
+Extra mogelijkheden:
+- `{ ongeldig: 'tekst', behoud: true }` toont alleen de melding; de streken blijven staan en je tekent verder.
+- `uitslag.geenNiveau = true`: de score telt niet mee voor niveau, gemiddelde en beste (gebruikt door de minigame).
+- Per opgave kun je `meerdereStreken`, `stilNa` en `toonUitslag` overschrijven door ze op het opgave-object te zetten.
+- De app houdt de uitslag de eerste 5 keer per oefening vast tot een tik, en daarna lang genoeg om de tip te lezen.
+  Houd tips daarom kort (liefst onder ±120 tekens; er passen er 4 regels).
+- Elke poging wordt gelogd (localStorage `tt.log`, en in de Artifact-versie ook in de database);
+  alle numerieke velden op het hoogste niveau van je uitslag komen als `deelscores` in dat log.
 
 ## Regels
 

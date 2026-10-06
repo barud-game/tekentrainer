@@ -65,6 +65,8 @@
   #instellingen { margin-top: 8px; padding-top: 14px; border-top: 1px solid var(--line); color: var(--fg-soft); font-size: 0.88rem; display: flex; gap: 10px; align-items: center; }
   #instellingen input { width: 22px; height: 22px; accent-color: var(--accent); margin: 0; }
   #instellingen label { padding: 6px 0; }
+  #instellingen { flex-wrap: wrap; }
+  #exportLog { font-size: 0.8rem; color: var(--fg-soft); padding: 6px 10px; margin-left: auto; background: var(--kaart); border-color: var(--kaart-rand); }
 
   /* ---- tekenscherm ---- */
   #oefening { position: fixed; inset: 0; display: flex; flex-direction: column; touch-action: none; user-select: none; -webkit-user-select: none; background: var(--bg); }
@@ -91,13 +93,14 @@
 
 <section id="menu">
   <header>
-    <p class="kicker">Schetsboek &middot; 11 oefeningen</p>
+    <p class="kicker">Schetsboek &middot; 11 oefeningen + spel</p>
     <h1>S Pen Tekentrainer</h1>
     <p class="sub">Korte oefeningen voor een sterke basis. Elke streek wordt meteen nagekeken en het niveau groeit mee.</p>
   </header>
   <div id="lijst"></div>
   <div id="instellingen">
     <input type="checkbox" id="vingerAan"><label for="vingerAan">Ook met vinger of muis tekenen (om te testen)</label>
+    <button type="button" id="exportLog">Exporteer oefendata (JSON)</button>
   </div>
 </section>
 
@@ -134,6 +137,8 @@ window.Tekentrainer = { oefeningen: [], registreer(o) { this.oefeningen.push(o);
 <script src="oefeningen/perspectief.js"></script>
 <script src="oefeningen/dozen.js"></script>
 <script src="oefeningen/geheugen.js"></script>
+<script src="extra/quickdraw-data.js"></script>
+<script src="extra/minigame.js"></script>
 <script>
 (function () {
   const H = window.Hulp;
@@ -145,7 +150,113 @@ window.Tekentrainer = { oefeningen: [], registreer(o) { this.oefeningen.push(o);
     lees(k, d) { try { const v = localStorage.getItem('tt.' + k); return v ? JSON.parse(v) : d; } catch (e) { return d; } },
     schrijf(k, v) { try { localStorage.setItem('tt.' + k, JSON.stringify(v)); } catch (e) { /* geen opslag */ } },
   };
-  const stand = (id) => opslag.lees('stand.' + id, { niveau: 1, scores: [], sindsWissel: 0, beste: 0 });
+  const stand = (id) => opslag.lees('stand.' + id, { niveau: 1, scores: [], sindsWissel: 0, beste: 0, uitslagen: 0 });
+
+  // ---------- analytics (lokaal in tt.log; daarnaast in de Artifact-db als die er is) ----------
+  const LOGMAX = 2000, SESMAX = 500;
+  let logLijst = null, sesLijst = null;
+  const iso = () => new Date().toISOString();
+  const nieuweId = () => iso().replace(/[:.]/g, '-') + '-' + Math.random().toString(36).slice(2, 8);
+  function ring(naam, lijst, rec, max) {
+    lijst.push(rec);
+    if (lijst.length > max) lijst.splice(0, lijst.length - max);
+    opslag.schrijf(naam, lijst);
+  }
+  // asynchroon en nooit blokkerend; null = alleen localStorage
+  const dbBelofte = (async () => {
+    try { return (window.claude && window.claude.use && await window.claude.use('db')) || null; }
+    catch (e) { return null; }
+  })();
+  let dbUit = false;
+  const dbWachtrij = [];
+  let dbBezig = false;
+  async function dbPomp() {
+    if (dbBezig) return;
+    dbBezig = true;
+    try {
+      const db = await dbBelofte;
+      while (dbWachtrij.length) {
+        const w = dbWachtrij.shift();
+        if (!db || dbUit) { dbWachtrij.length = 0; break; }
+        try { await db.collection(w.coll).doc(nieuweId()).set(w.rec); }
+        catch (e) {
+          console.warn('db-schrijven mislukt', e);
+          // geen rechten (niet de eigenaar) of niet beschikbaar: stop met proberen
+          if (!e || (e.code !== 'unavailable' && e.code !== 'resource_exhausted')) dbUit = true;
+        }
+      }
+    } catch (e) { console.warn(e); }
+    dbBezig = false;
+  }
+  function logPoging(rec) {
+    try { if (!logLijst) logLijst = opslag.lees('log', []); ring('log', logLijst, rec, LOGMAX); } catch (e) { console.warn(e); }
+    dbWachtrij.push({ coll: 'pogingen', rec }); dbPomp();
+  }
+  function logSessie(rec) {
+    try { if (!sesLijst) sesLijst = opslag.lees('sessies', []); ring('sessies', sesLijst, rec, SESMAX); } catch (e) { console.warn(e); }
+    dbWachtrij.push({ coll: 'sessies', rec }); dbPomp();
+  }
+  function stopSessie(h) {
+    if (!h || h.sessieKlaar) return;
+    h.sessieKlaar = true;
+    logSessie({ t: iso(), event: 'stop', oefening: h.o.id, duurMs: Math.round(Date.now() - h.sessieStart), aantalPogingen: h.pogingen || 0 });
+  }
+  function maakRecord(h, u, wissel) {
+    let n = 0, som = 0, t0 = Infinity, t1 = -Infinity;
+    const typen = new Set();
+    for (const st of h.streken) {
+      if (st.type) typen.add(st.type);
+      for (const p of st.punten) { n++; som += (p.p == null ? 0.5 : p.p); if (p.t < t0) t0 = p.t; if (p.t > t1) t1 = p.t; }
+    }
+    const deel = {};
+    if (u && !u.ongeldig) {
+      let c = 0;
+      for (const k of Object.keys(u)) {
+        if (k === 'score' || c >= 20) continue;
+        if (typeof u[k] === 'number' && isFinite(u[k])) { deel[k] = Math.round(u[k] * 1000) / 1000; c++; }
+      }
+    }
+    h.pogingen = (h.pogingen || 0) + 1;
+    return {
+      t: iso(), oefening: h.o.id, niveau: h.s.niveau,
+      score: u && !u.ongeldig ? u.score : null,
+      ongeldig: u && u.ongeldig ? String(u.ongeldig) : null,
+      tip: u && u.tip ? String(u.tip) : null,
+      duurMs: n ? Math.round(t1 - t0) : 0, aantalStreken: h.streken.length, aantalPunten: n,
+      gemDruk: n ? Math.round(som / n * 1000) / 1000 : null,
+      penType: typen.size === 1 ? [...typen][0] : typen.size ? 'gemengd' : null,
+      vlakW: Math.round(vlak.w), vlakH: Math.round(vlak.h),
+      deelscores: deel, niveauWissel: wissel || 0, uitslagLeesMs: null,
+    };
+  }
+  // de uitslag is klaar met lezen: nu pas loggen, met leestijd (idempotent)
+  function afrondRec(h) {
+    if (!h || !h.rec) return;
+    const rec = h.rec;
+    h.rec = null;
+    rec.uitslagLeesMs = Math.round(performance.now() - (h.uitslagT || performance.now()));
+    logPoging(rec);
+  }
+  // downloads-capability vooraf ophalen (null buiten de artifact-viewer)
+  let dl = null;
+  Promise.resolve(window.claude?.use?.('downloads')).then(d => { dl = d || null; }).catch(() => {});
+  $('exportLog').addEventListener('click', async () => {
+    try {
+      if (!logLijst) logLijst = opslag.lees('log', []);
+      if (!sesLijst) sesLijst = opslag.lees('sessies', []);
+      const json = JSON.stringify({ geexporteerd: iso(), pogingen: logLijst, sessies: sesLijst }, null, 1);
+      const filename = 'oefendata-' + iso().slice(0, 10) + '.json';
+      if (dl) {
+        try { await dl.save({ filename, data: json }); } catch (e) { console.warn('export geweigerd', e); }
+        return;
+      }
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
+      a.download = filename;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    } catch (e) { console.warn(e); }
+  });
 
   // ---------- thema-kleuren voor de canvas ----------
   function kleuren() {
@@ -157,6 +268,7 @@ window.Tekentrainer = { oefeningen: [], registreer(o) { this.oefeningen.push(o);
 
   // ---------- menu ----------
   const GROEPEN = [
+    { naam: 'Spel', ids: ['minigame'] },
     { naam: 'Lijnen & vormen', ids: ['lijnen', 'curves', 'slingerlijn', 'cirkels', 'ellipsen'] },
     { naam: 'Meten & richting', ids: ['hoeken', 'proporties', 'perspectief', 'dozen'] },
     { naam: 'Oog & hand', ids: ['arcering', 'geheugen'] },
@@ -173,6 +285,7 @@ window.Tekentrainer = { oefeningen: [], registreer(o) { this.oefeningen.push(o);
     perspectief: 'M3 25 L15 8 L27 25 M9 25 L15 8 L21 25 M3 25 H27',
     dozen: 'M5 11 L15 6 L25 11 L25 22 L15 27 L5 22 Z M5 11 L15 16 L25 11 M15 16 V27',
     arcering: 'M6 24 L14 6 M12 24 L20 6 M18 24 L26 6 M4 17 L9 6',
+    minigame: 'M15 3 L18.5 11 L27 12 L20.5 17.5 L22.5 26 L15 21.5 L7.5 26 L9.5 17.5 L3 12 L11.5 11 Z',
     geheugen: 'M4 15 C9 7 21 7 26 15 C21 23 9 23 4 15 M15 11a4 4 0 1 0 .01 0',
   };
   function ikoon(id) {
@@ -211,6 +324,7 @@ window.Tekentrainer = { oefeningen: [], registreer(o) { this.oefeningen.push(o);
     return b;
   }
   function toonMenu() {
+    if (huidig) { clearTimeout(huidig.uitslagTimer); afrondRec(huidig); stopSessie(huidig); }
     huidig = null;
     $('oefening').hidden = true;
     $('menu').hidden = false;
@@ -250,20 +364,29 @@ window.Tekentrainer = { oefeningen: [], registreer(o) { this.oefeningen.push(o);
     $('oUitleg').textContent = o.uitleg;
     $('oUitleg').classList.remove('open');
     $('klaar').hidden = !o.meerdereStreken;
-    huidig = { o, s: stand(o.id), streken: [], fase: 'tekenen' };
+    huidig = { o, s: stand(o.id), streken: [], fase: 'tekenen', sessieStart: Date.now(), pogingen: 0 };
+    logSessie({ t: iso(), event: 'start', oefening: o.id });
     maat();
     nieuweOpgave();
   }
 
+  // per-opgave overrides hebben voorrang op de oefening
+  const kies = (h, k) => (h.opgave && h.opgave[k] !== undefined ? h.opgave[k] : h.o[k]);
+
   function nieuweOpgave() {
     const h = huidig;
     clearTimeout(h.verbergTimer);
+    clearTimeout(h.uitslagTimer);
+    clearTimeout(stilTimer);
+    afrondRec(h);
+    h.wachtTik = false;
     h.streken = [];
     h.actief = null;
     h.uitslag = null;
     h.fase = 'tekenen';
     h.verborgen = false;
     h.opgave = h.o.nieuweOpgave(h.s.niveau, rng, vlak);
+    $('klaar').hidden = !kies(h, 'meerdereStreken');
     window.__tt = h;
     h.start = performance.now();
     if (h.opgave.verbergNa) h.verbergTimer = setTimeout(() => { h.verborgen = true; teken(); }, h.opgave.verbergNa);
@@ -308,38 +431,66 @@ window.Tekentrainer = { oefeningen: [], registreer(o) { this.oefeningen.push(o);
   function nakijken() {
     const h = huidig;
     if (!h || h.fase !== 'tekenen' || !h.streken.length) return;
+    clearTimeout(stilTimer);
     let u;
     try { u = h.o.nakijken(h.opgave, h.streken, vlak); }
     catch (e) { console.error(e); u = { ongeldig: 'Er ging iets mis bij het nakijken.' }; }
     if (u && !u.ongeldig && !Number.isFinite(u.score)) { console.error('Ongeldige score', u); u = { ongeldig: 'Er ging iets mis bij het nakijken.' }; }
     if (!u || u.ongeldig) {
       melding((u && u.ongeldig) || 'Probeer opnieuw');
-      h.streken = [];
+      logPoging(maakRecord(h, u || { ongeldig: 'Probeer opnieuw' }, 0));
+      if (!(u && u.behoud)) h.streken = [];   // behoud: streken blijven staan, de gebruiker tekent verder
       teken();
       return;
     }
     u.score = Math.round(H.clamp(u.score, 0, 100));
+    const s = h.s;
+    let wissel = 0;
+    if (!u.geenNiveau) {
+      s.scores.push(u.score);
+      if (s.scores.length > 200) s.scores.shift();
+      s.sindsWissel++;
+      s.beste = Math.max(s.beste || 0, u.score);
+      const l5 = s.scores.slice(-5), l3 = s.scores.slice(-3);
+      if (s.sindsWissel >= 5 && H.gemiddelde(l5) >= 80 && s.niveau < 5) wissel = 1;
+      else if (s.sindsWissel >= 3 && l3.every((x) => x < 45) && s.niveau > 1) wissel = -1;
+    }
+    h.rec = maakRecord(h, u, wissel);   // wordt gelogd zodra de uitslag gelezen is
+    h.wissel = wissel;
     h.uitslag = u;
     h.fase = 'uitslag';
     h.uitslagT = performance.now();
 
-    const s = h.s;
-    s.scores.push(u.score);
-    if (s.scores.length > 200) s.scores.shift();
-    s.sindsWissel++;
-    s.beste = Math.max(s.beste || 0, u.score);
-    const l5 = s.scores.slice(-5), l3 = s.scores.slice(-3);
-    let wissel = 0;
-    if (s.sindsWissel >= 5 && H.gemiddelde(l5) >= 80 && s.niveau < 5) wissel = 1;
-    else if (s.sindsWissel >= 3 && l3.every((x) => x < 45) && s.niveau > 1) wissel = -1;
+    // leesduur: de eerste 5 uitslagen per oefening wacht de uitslag op een tik (met ruime vangnet-timer)
+    const lengte = u.tip ? String(u.tip).length : 0;
+    const leren = lengte > 0 && (s.uitslagen || 0) < 5;
+    s.uitslagen = (s.uitslagen || 0) + 1;
+    let ms;
+    if (leren) ms = Math.min(9000, 2500 + 60 * lengte);
+    else ms = Math.max(kies(h, 'toonUitslag') || 1400, lengte ? Math.min(9000, 1200 + 45 * lengte) : 0);
+    h.wachtTik = leren;
+    h.tikVanaf = h.uitslagT + 300;   // een te snelle tik (nog bij het tekenen) telt niet
     opslag.schrijf('stand.' + h.o.id, s);
     teken();
-    setTimeout(() => {
-      if (huidig !== h) return;
-      if (wissel) zetNiveau(s.niveau + wissel, wissel > 0 ? 'Niveau omhoog: ' + (s.niveau + 1) : 'Even een niveau terug: ' + (s.niveau - 1));
-      nieuweOpgave();
-    }, h.o.toonUitslag || 1400);
+    clearTimeout(h.uitslagTimer);
+    h.uitslagTimer = setTimeout(() => { if (huidig === h) verder(); }, ms);
     werkStand();
+  }
+
+  // uitslag voorbij (timer of tik): niveau bijwerken, hook, volgende opgave
+  function verder() {
+    const h = huidig;
+    if (!h || h.fase !== 'uitslag') return;
+    clearTimeout(h.uitslagTimer);
+    afrondRec(h);
+    const s = h.s;
+    if (h.wissel) zetNiveau(s.niveau + h.wissel, h.wissel > 0 ? 'Niveau omhoog: ' + (s.niveau + 1) : 'Even een niveau terug: ' + (s.niveau - 1));
+    let stop = false;
+    if (typeof h.o.naUitslag === 'function') {
+      try { stop = h.o.naUitslag(h.opgave, h.uitslag) === 'stop'; } catch (e) { console.error(e); }
+    }
+    if (stop) { h.fase = 'gestopt'; $('klaar').hidden = true; h.wachtTik = false; h.tikVanaf = performance.now() + 300; teken(); }
+    else nieuweOpgave();
   }
   $('klaar').addEventListener('click', nakijken);
 
@@ -373,55 +524,81 @@ window.Tekentrainer = { oefeningen: [], registreer(o) { this.oefeningen.push(o);
     ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
     ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
   }
-  function breek(tekst, maxB) {
+  function breek(tekst, maxB, max) {
     const regels = []; let r = '';
     for (const w of String(tekst).split(/\s+/)) {
       const t = r ? r + ' ' + w : w;
       if (r && ctx.measureText(t).width > maxB) { regels.push(r); r = w; } else r = t;
     }
     if (r) regels.push(r);
-    return regels.slice(0, 3);
+    if (regels.length > max) { regels.length = max; regels[max - 1] = regels[max - 1].replace(/[\s.,;:!?]*$/, '') + '\u2026'; }
+    return regels;
   }
   function tekenScore(u) {
     const plek = huidig.o.scorePlek ? huidig.o.scorePlek(huidig.opgave, vlak) : { x: vlak.w / 2, y: vlak.h / 2 };
     const sterk = u.score >= 80, matig = u.score >= 60;
     const k = sterk ? vlak.kleur.goed : matig ? vlak.kleur.waarschuwing : vlak.kleur.fout;
-    const woord = sterk ? 'Sterk' : matig ? 'Bijna' : 'Oefen door';
+    const woord = (sterk ? 'Sterk' : matig ? 'Bijna' : 'Oefen door').toUpperCase();
     const fam = getComputedStyle(document.body).fontFamily;
     const mono = getComputedStyle(document.documentElement).getPropertyValue('--mono') || fam;
     const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
     const t = reduced ? 1 : H.clamp((performance.now() - (huidig.uitslagT || 0)) / 380, 0, 1);
     const e = 1 - Math.pow(1 - t, 3);
-    const grootte = Math.round(H.clamp(Math.min(vlak.w, vlak.h) * 0.13, 38, 84));
-    const tf = Math.round(H.clamp(grootte * 0.3, 13, 20));
-    const maxB = Math.min(vlak.w * 0.84, 340);
+    const m = Math.min(vlak.w, vlak.h);
+    const heeftTip = !!u.tip;
+    // de tip is de hoofdzaak; de score is bijzaak (zonder tip krijgt de score weer de ruimte)
+    const sg = Math.round(heeftTip ? H.clamp(m * 0.07, 22, 38) : H.clamp(m * 0.13, 38, 84));
+    const tf = Math.round(H.clamp(m * 0.045, 17, 26));
+    const wf = Math.max(11, Math.round(sg * 0.38));
+    const hf = Math.max(12, Math.round(tf * 0.7));
+    const maxB = Math.min(vlak.w * 0.92, 480);
+    const hint = huidig.wachtTik ? 'tik om verder te gaan' : '';
     ctx.save();
-    ctx.font = '500 ' + tf + 'px ' + fam;
-    const regels = u.tip ? breek(u.tip, maxB - 28) : [];
-    const lh = tf * 1.3;
-    const cw = Math.max(regels.reduce((m, r) => Math.max(m, ctx.measureText(r).width), 0) + 28, grootte * 2.2, 120);
-    const ch = 8 + grootte + 20 + (regels.length ? regels.length * lh + 14 : 0) + 6;
+    ctx.font = '600 ' + tf + 'px ' + fam;
+    const regels = heeftTip ? breek(u.tip, maxB - 36, 4) : [];
+    const lh = tf * 1.32;
+    ctx.font = '800 ' + sg + 'px ' + fam;
+    const scoreB = ctx.measureText(String(u.score)).width;
+    ctx.font = '500 ' + wf + 'px ' + mono;
+    const woordB = ctx.measureText(woord).width;
+    ctx.font = '500 ' + hf + 'px ' + mono;
+    const hintB = hint ? ctx.measureText(hint).width : 0;
+    ctx.font = '600 ' + tf + 'px ' + fam;
+    const tipB = regels.reduce((mx, r) => Math.max(mx, ctx.measureText(r).width), 0);
+    const rijB = scoreB + 12 + woordB;
+    const cw = Math.max(tipB + 36, rijB + 36, hintB + 36, 130);
+    const rijH = sg * 1.1;
+    const ch = 12 + rijH + (regels.length ? 10 + regels.length * lh : 0) + (hint ? 10 + hf * 1.3 : 0) + 12;
     const cx = H.clamp(plek.x, cw / 2 + 8, Math.max(cw / 2 + 8, vlak.w - cw / 2 - 8));
     const cy = H.clamp(plek.y, ch / 2 + 8, Math.max(ch / 2 + 8, vlak.h - ch / 2 - 8));
     ctx.translate(cx, cy + (1 - e) * 10);
     ctx.scale(0.92 + 0.08 * e, 0.92 + 0.08 * e);
     rondRect(-cw / 2, -ch / 2, cw, ch, 12);
-    ctx.globalAlpha = 0.94 * e; ctx.fillStyle = vlak.kleur.papier; ctx.fill();
+    ctx.globalAlpha = 0.96 * e; ctx.fillStyle = vlak.kleur.papier; ctx.fill();
     ctx.globalAlpha = e; ctx.lineWidth = 2.5; ctx.strokeStyle = k; ctx.stroke();
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    let y = -ch / 2 + 8 + grootte / 2;
-    ctx.font = '800 ' + grootte + 'px ' + fam;
+    ctx.textBaseline = 'middle';
+    let y = -ch / 2 + 12 + rijH / 2;
+    ctx.textAlign = 'left';
+    ctx.font = '800 ' + sg + 'px ' + fam;
     ctx.fillStyle = k;
-    ctx.fillText(String(u.score), 0, y);
-    y += grootte / 2 + 12;
-    ctx.font = '500 ' + Math.max(11, Math.round(tf * 0.8)) + 'px ' + mono;
+    ctx.fillText(String(u.score), -rijB / 2, y);
+    ctx.font = '500 ' + wf + 'px ' + mono;
     ctx.fillStyle = vlak.kleur.tekstZacht;
-    ctx.fillText(woord.toUpperCase(), 0, y);
+    ctx.fillText(woord, -rijB / 2 + scoreB + 12, y + sg * 0.06);
+    ctx.textAlign = 'center';
+    y += rijH / 2;
     if (regels.length) {
-      y += 10 + lh / 2 + 4;
-      ctx.font = '500 ' + tf + 'px ' + fam;
+      y += 10 + lh / 2;
+      ctx.font = '600 ' + tf + 'px ' + fam;
       ctx.fillStyle = vlak.kleur.tekst;
       regels.forEach((r, i) => ctx.fillText(r, 0, y + i * lh));
+      y += (regels.length - 1) * lh + lh / 2;
+    }
+    if (hint) {
+      y += 10 + hf * 0.65;
+      ctx.font = '500 ' + hf + 'px ' + mono;
+      ctx.fillStyle = vlak.kleur.tekstZacht;
+      ctx.fillText(hint, 0, y);
     }
     ctx.restore();
   }
@@ -432,7 +609,7 @@ window.Tekentrainer = { oefeningen: [], registreer(o) { this.oefeningen.push(o);
     ctx.clearRect(0, 0, vlak.w, vlak.h);
     const info = { nu: performance.now(), sinds: performance.now() - h.start, verborgen: h.verborgen, streken: h.streken };
     try { h.o.teken(ctx, h.opgave, vlak, info); } catch (e) { console.error(e); }
-    for (const st of h.streken) tekenStreek(st);
+    if (h.fase !== 'gestopt') for (const st of h.streken) tekenStreek(st);
     if (h.actief) tekenStreek(h.actief);
     if (h.fase === 'uitslag' && h.uitslag) {
       try { h.o.tekenUitslag && h.o.tekenUitslag(ctx, h.opgave, h.streken, h.uitslag, vlak); } catch (e) { console.error(e); }
@@ -456,11 +633,18 @@ window.Tekentrainer = { oefeningen: [], registreer(o) { this.oefeningen.push(o);
   }
 
   doek.addEventListener('pointerdown', (e) => {
-    if (!huidig || huidig.fase !== 'tekenen' || !magTekenen(e)) return;
+    const hh = huidig;
+    if (hh && (hh.fase === 'uitslag' || hh.fase === 'gestopt')) {
+      // tik op het vlak: uitslag overslaan / na een stop een nieuwe opgave; telt nooit als streek
+      e.preventDefault();
+      if (performance.now() >= (hh.tikVanaf || 0)) { if (hh.fase === 'uitslag') verder(); else nieuweOpgave(); }
+      return;
+    }
+    if (!hh || hh.fase !== 'tekenen' || !magTekenen(e)) return;
     e.preventDefault();
     clearTimeout(stilTimer);
     doek.setPointerCapture(e.pointerId);
-    huidig.actief = { punten: [punt(e)], id: e.pointerId };
+    huidig.actief = { punten: [punt(e)], id: e.pointerId, type: e.pointerType };
     teken();
   });
   doek.addEventListener('pointermove', (e) => {
@@ -475,14 +659,16 @@ window.Tekentrainer = { oefeningen: [], registreer(o) { this.oefeningen.push(o);
     if (!a || a.id !== e.pointerId) return;
     a.punten.push(punt(e));
     h.actief = null;
-    h.streken.push({ punten: a.punten });
+    h.streken.push({ punten: a.punten, type: a.type });
     teken();
-    const klaar = h.o.isKlaar ? h.o.isKlaar(h.opgave, h.streken) : !h.o.meerdereStreken;
+    const klaar = h.o.isKlaar ? h.o.isKlaar(h.opgave, h.streken) : !kies(h, 'meerdereStreken');
+    const stilNa = kies(h, 'stilNa');
     if (klaar) nakijken();
-    else if (h.o.stilNa) stilTimer = setTimeout(nakijken, h.o.stilNa);
+    else if (stilNa) stilTimer = setTimeout(nakijken, stilNa);
   }
   doek.addEventListener('pointerup', einde);
   doek.addEventListener('pointercancel', einde);
+  window.addEventListener('pagehide', () => { if (huidig) { afrondRec(huidig); stopSessie(huidig); } });
   window.addEventListener('contextmenu', (e) => { if (huidig) e.preventDefault(); });
 
   window.addEventListener('resize', () => { if (huidig) { maat(); nieuweOpgave(); } });

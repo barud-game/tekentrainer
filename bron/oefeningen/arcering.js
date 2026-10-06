@@ -5,6 +5,7 @@
   const MIN_STREKEN = 5, MAX_STREKEN = 20;
   const CEL = 8;           // px: rasterstap voor dekking
   const GRENS = 6;         // px buiten de vorm = "buiten"
+  const MAX_KROM = 0.10;   // maximale afwijking/lengte van een 'rechte' streek (cirkels, bogen en krullen vallen erbuiten)
 
   // Per niveau: vorm(en), hoeken (graden), afstand als fractie van de vormdiameter,
   // of de voorbeeldlijnen blijven staan, drempelfactor, soort (const/verloop/kruis).
@@ -127,24 +128,31 @@
   // ---------- nakijken ----------
   const wrap = (rad) => { let d = rad % Math.PI; if (d > Math.PI / 2) d -= Math.PI; if (d <= -Math.PI / 2) d += Math.PI; return d; };
 
+  // Eindig getal binnen 0..100 (NaN/Infinity worden 0), zodat de motor nooit een kapotte score krijgt.
+  const fin = (v) => (Number.isFinite(v) ? H.clamp(v, 0, 100) : 0);
+  const eindig = (v, standaard) => (Number.isFinite(v) ? v : standaard);
+
+  // Geeft de rechte streken terug; de te kromme (cirkels, bogen) worden geteld in uit.krom.
   function geldigeStreken(o, streken) {
     const uit = [];
-    streken.forEach((s, idx) => {
-      const ruw = s.punten;
+    uit.krom = 0;
+    (streken || []).forEach((s, idx) => {
+      const ruw = s && Array.isArray(s.punten) ? s.punten.filter((p) => p && Number.isFinite(p.x) && Number.isFinite(p.y)) : null;
       if (!ruw || ruw.length < 2) return;
       const len = H.lengte(ruw);
-      if (len < 0.15 * o.D) return; // tikjes
+      if (!(len >= 0.15 * o.D)) return; // tikjes
       const pts = H.herbemonster(ruw, 4);
       if (pts.length < 3) return;
       const fit = H.lijnFit(pts);
       let maxAfw = 0;
       for (const p of pts) maxAfw = Math.max(maxAfw, Math.abs(H.lijnAfstand(p, { x: fit.mx, y: fit.my }, fit.dx, fit.dy)));
       const a = ruw[0], b = ruw[ruw.length - 1];
+      if (!Number.isFinite(maxAfw) || maxAfw / len > MAX_KROM) { uit.krom++; return; }
       uit.push({
         idx, pts, len, hoek: fit.hoek, r: maxAfw / len,
         mid: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
         dx: b.x - a.x, dy: b.y - a.y,
-        druk: H.gemiddelde(ruw.map((p) => (typeof p.p === 'number' ? p.p : 0.5))),
+        druk: H.gemiddelde(ruw.map((p) => (Number.isFinite(p.p) ? p.p : 0.5))),
       });
     });
     return uit;
@@ -161,24 +169,28 @@
   function analyseLaag(o, laag, st, cellen) {
     const f = o.f;
     const L = (x, g, s) => H.lin(x, g * f, s * f);
-    const res = { n: st.length, fout: new Set() };
-    if (st.length < 3) { res.leeg = true; res.hoekScore = res.afstandScore = res.rechtScore = res.dekScore = 0; res.dek = 0; res.tegen = 0; res.onbedekt = cellen.map(() => true); return res; }
+    const res = { n: st.length, fout: new Set(), gaten: [] };
+    if (st.length < 3) { res.leeg = true; res.hoekScore = res.afstandScore = 0; res.dek = 0; res.onbedekt = cellen.map(() => true); return res; }
 
+    // Criterium 1: hoek (evenwijdig, juiste schuinte, recht).
     const diffs = st.map((s) => wrap(s.hoek - laag.hoek) / RAD);
     const sdHoek = H.sd(diffs), gemDiff = H.gemiddelde(diffs);
     res.sdHoek = sdHoek; res.gemDiff = gemDiff;
-    res.hoekScore = 100 * (0.5 * L(sdHoek, 2, 10) + 0.5 * L(Math.abs(gemDiff), 3, 15));
+    res.r = H.gemiddelde(st.map((s) => s.r));
+    res.hoekScore = 100 * (0.4 * L(sdHoek, 2, 8) + 0.35 * L(Math.abs(gemDiff), 3, 12) + 0.25 * L(res.r, 0.02, 0.07));
     st.forEach((s, i) => { if (Math.abs(diffs[i]) > 6) res.fout.add(s.idx); });
 
-    // Afstanden loodrecht op de gemiddelde hoek.
+    // Criterium 2: afstand (gelijkmatig, geen gaten). Loodrecht op de gemiddelde hoek.
     const th = laag.hoek + gemDiff * RAD, nx = -Math.sin(th), ny = Math.cos(th);
     const gesorteerd = st.map((s) => ({ s, q: s.mid.x * nx + s.mid.y * ny })).sort((a, b) => a.q - b.q);
     const gaten = [];
     for (let i = 1; i < gesorteerd.length; i++) gaten.push(gesorteerd[i].q - gesorteerd[i - 1].q);
     const mu = H.gemiddelde(gaten);
-    res.mu = mu; res.doel = laag.d;
+    res.mu = mu; res.doel = laag.d; res.th = th;
     const reg = regressie(gaten), m = gaten.length;
     res.cv = mu > 0 ? H.sd(gaten) / mu : 1;
+    // Ondergrens voor de 'hoort-te-zijn' ruimte: voorkomt delen door (bijna) nul bij lijnen op één plek.
+    const vloer = 0.3 * (laag.verloop ? Math.min(...laag.verloop.gaten) : laag.d);
     let ref;
     if (laag.verloop) {
       const kant = laag.verloop.kant;
@@ -187,36 +199,35 @@
       res.verloopF = groot > 0 ? (groot - klein) / groot : 0;
       const resid = gaten.map((g, j) => g - reg.fit(j));
       res.residCv = mu > 0 ? H.sd(resid) / mu : 1;
-      res.afstandScore = 100 * (0.5 * L(res.residCv, 0.10, 0.40) + 0.5 * H.lin(res.verloopF, 0.4, 0.05));
-      ref = (j) => Math.max(1e-6, reg.fit(j));
+      ref = (j) => Math.max(vloer, reg.fit(j));
     } else {
       res.afwDoel = Math.abs(mu - laag.d) / laag.d;
-      res.afstandScore = 100 * (0.6 * L(res.cv, 0.10, 0.40) + 0.4 * L(res.afwDoel, 0.15, 0.5));
       const f0 = reg.fit(0), f1 = reg.fit(m - 1), groot = Math.max(f0, f1), klein = Math.min(f0, f1);
       res.trend = m >= 4 && groot > 0 ? (groot - klein) / groot : 0;
       const resid = gaten.map((g, j) => g - reg.fit(j));
       res.residCv = mu > 0 ? H.sd(resid) / mu : 1;
       const med = H.mediaan(gaten);
-      ref = () => med;
+      const refMed = Math.max(vloer, med);
+      ref = () => refMed;
     }
+    // Grootste afwijking van één tussenruimte t.o.v. wat hij hoort te zijn.
+    let maxAfw = 0;
+    res.gatTeGroot = res.gatTeKlein = false;
     for (let j = 0; j < m; j++) {
-      const r = ref(j);
-      if (Math.abs(gaten[j] - r) / r > 0.4) res.fout.add(gesorteerd[j + 1].s.idx);
+      const r = ref(j), v = (gaten[j] - r) / r;
+      maxAfw = Math.max(maxAfw, Math.abs(v));
+      if (v > 0.4) { res.gatTeGroot = true; res.gaten.push({ q0: gesorteerd[j].q, q1: gesorteerd[j + 1].q }); }
+      else if (v < -0.4) { res.gatTeKlein = true; res.fout.add(gesorteerd[j + 1].s.idx); }
     }
+    res.maxAfw = maxAfw;
+    if (laag.verloop) res.afstandScore = 100 * (0.4 * L(res.residCv, 0.08, 0.35) + 0.25 * H.lin(res.verloopF, 0.4, 0.05) + 0.35 * L(maxAfw, 0.3, 0.8));
+    else res.afstandScore = 100 * (0.4 * L(res.cv, 0.08, 0.30) + 0.25 * L(res.afwDoel, 0.15, 0.5) + 0.35 * L(maxAfw, 0.3, 0.8));
 
-    res.r = H.gemiddelde(st.map((s) => s.r));
-    res.rechtScore = 100 * L(res.r, 0.02, 0.08);
-
-    // Richting: tegen de meerderheid in.
-    const ux = Math.cos(laag.hoek), uy = Math.sin(laag.hoek);
-    const tekens = st.map((s) => (s.dx * ux + s.dy * uy >= 0 ? 1 : -1));
-    const pos = tekens.filter((t) => t > 0).length;
-    res.tegen = Math.min(pos, st.length - pos);
-
-    // Dekking.
+    // Criterium 3 (deels): dekking van het vak door deze laag.
+    // Ruime tolerantie: kleine onregelmaat telt bij Afstand, hier telt alleen echt leeg gebied.
     const tol = laag.verloop
-      ? 0.5 * Math.min(Math.max(...gaten), 1.2 * Math.max(...laag.verloop.gaten))
-      : 0.5 * Math.min(mu, 1.5 * laag.d);
+      ? 0.75 * Math.max(...laag.verloop.gaten)
+      : 0.75 * laag.d;
     res.onbedekt = cellen.map(([x, y]) => {
       for (const s of st) if (H.polyAfstand({ x, y }, s.pts) <= tol) return false;
       return true;
@@ -225,9 +236,26 @@
     return res;
   }
 
+  function groepeer(o, st) {
+    const groepen = o.lagen.map(() => []);
+    for (const s of st) {
+      let best = 0, bd = Infinity;
+      o.lagen.forEach((l, i) => { const d = H.lijnHoekVerschil(s.hoek, l.hoek); if (d < bd) { bd = d; best = i; } });
+      groepen[best].push(s);
+    }
+    return groepen;
+  }
+
+  // Score = deels gemiddelde, deels zwakste criterium: één slecht onderdeel kun je niet wegpoetsen.
   function nakijken(o, streken) {
     const st = geldigeStreken(o, streken);
-    if (st.length < MIN_STREKEN) return { ongeldig: 'Te weinig streken: vul de vorm met minstens ' + MIN_STREKEN + ' lijnen.' };
+    if (st.length < MIN_STREKEN && st.krom >= st.length && st.krom > 0)
+      return { ongeldig: 'Teken rechte, evenwijdige lijnen in het vlak', behoud: true };
+    if (st.length < MIN_STREKEN)
+      return { ongeldig: 'Nog ' + st.length + ' lijnen; teken er minstens ' + MIN_STREKEN + ' en tik dan op Klaar.', behoud: true };
+    const groepen = groepeer(o, st);
+    if (groepen.some((g) => g.length < 3))
+      return { ongeldig: o.lagen.length > 1 ? 'Teken in beide richtingen minstens 3 lijnen en tik dan op Klaar.' : 'Teken minstens 3 lijnen onder de juiste hoek.', behoud: true };
 
     // Raster van cellen binnen de vorm.
     const cellen = [];
@@ -235,13 +263,6 @@
       for (let x = o.cx - o.R; x <= o.cx + o.R; x += CEL)
         if (buiten(o, x, y) <= 0) cellen.push([x, y]);
 
-    // Lagen toewijzen op dichtstbijzijnde doelhoek (bij cross-hatching twee groepen).
-    const groepen = o.lagen.map(() => []);
-    for (const s of st) {
-      let best = 0, bd = Infinity;
-      o.lagen.forEach((l, i) => { const d = H.lijnHoekVerschil(s.hoek, l.hoek); if (d < bd) { bd = d; best = i; } });
-      groepen[best].push(s);
-    }
     const lagen = o.lagen.map((l, i) => analyseLaag(o, l, groepen[i], cellen));
     const gem = (k) => H.gemiddelde(lagen.map((l) => l[k]));
 
@@ -250,61 +271,54 @@
     for (const s of st) for (const p of s.pts) { tot++; if (buiten(o, p.x, p.y) > GRENS) bui++; }
     const buitenPct = 100 * bui / Math.max(1, tot);
     const dek = gem('dek');
-    const dekScore = Math.max(0, 100 * H.lin(dek, 0.9, 0.5) - 3 * buitenPct) * (lagen.every((l) => l.leeg) ? 0 : 1);
-    const dekFinal = lagen.some((l) => l.leeg) ? Math.min(dekScore, 100 * H.lin(dek, 0.9, 0.5)) : dekScore;
+    const dekScore = Math.max(0, 100 * H.lin(dek, 0.85, 0.45) - 4 * buitenPct);
 
-    // Druk (muis: constant 0.5, dus CV 0).
-    const drukken = st.map((s) => s.druk);
-    const mp = H.gemiddelde(drukken);
-    const cvDruk = mp > 0 ? H.sd(drukken) / mp : 0;
-    const drukScore = 100 * H.lin(cvDruk, 0.15, 0.5);
+    const hoek = Math.round(fin(gem('hoekScore'))), afstand = Math.round(fin(gem('afstandScore'))), dekking = Math.round(fin(dekScore));
+    const crit = [hoek, afstand, dekking];
+    const score = Math.round(fin(0.6 * H.gemiddelde(crit) + 0.4 * Math.min(...crit)));
 
-    const tegen = lagen.reduce((s, l) => s + l.tegen, 0);
-    const straf = Math.min(15, 5 * tegen);
-
-    const raw = 0.30 * gem('hoekScore') + 0.30 * gem('afstandScore') + 0.15 * gem('rechtScore') + 0.15 * dekFinal + 0.10 * drukScore - straf;
-    const score = Math.round(H.clamp(raw, 0, 100));
-
-    // Gemarkeerde (foute) streken en onbedekte cellen.
+    // Gemarkeerde (foute) streken, gaten en onbedekte cellen.
     const fout = new Set();
     lagen.forEach((l) => l.fout.forEach((i) => fout.add(i)));
+    const gaten = [];
+    lagen.forEach((l) => l.gaten.forEach((g) => gaten.push({ th: l.th, q0: g.q0, q1: g.q1 })));
     const onbedekt = [];
     cellen.forEach((c, i) => { if (lagen.some((l) => l.onbedekt[i])) onbedekt.push(c); });
 
-    const u = { score, fout: Array.from(fout), onbedekt, buitenPct, dek, cvDruk, tegen };
-    u.tip = tip(o, lagen, u);
+    const u = { score, hoek, afstand, dekking, fout: Array.from(fout), gaten, onbedekt, buitenPct: eindig(buitenPct, 0), dek: eindig(dek, 0) };
+    u.tip = tip(lagen, u);
     return u;
   }
 
-  function tip(o, lagen, u) {
-    const geldig = lagen.filter((l) => !l.leeg);
-    if (geldig.length < lagen.length) return 'Teken beide lagen: minstens 3 lijnen onder elke hoek.';
-    const max = (k) => Math.max(...geldig.map((l) => l[k] || 0));
-    const kand = [];
-    const sd = max('sdHoek');
-    if (sd > 6) kand.push([sd / 6, 'Je hoek schommelt; beweeg vanuit je schouder of draai je scherm.']);
-    const dev = Math.max(...geldig.map((l) => Math.abs(l.gemDiff)));
-    if (dev > 8) kand.push([dev / 8 * 0.9, 'Je hoek wijkt af van het voorbeeld; kijk goed naar de schuine lijnen.']);
-    for (const l of geldig) {
-      if (l.verloopF !== undefined) {
-        if (l.verloopF < 0.2) kand.push([1 + (0.2 - l.verloopF) * 5, 'Laat de afstand steeds kleiner worden naar één kant.']);
-        if (l.residCv > 0.25) kand.push([l.residCv / 0.25, 'Je afstanden lopen niet gelijkmatig af; kijk naar de ruimte tussen de lijnen.']);
-      } else {
-        if (l.trend > 0.3 && l.residCv < 0.25) kand.push([l.trend / 0.3 * 1.1, 'Je lijnen kruipen steeds dichter naar elkaar toe.']);
-        else if (l.cv > 0.25) kand.push([l.cv / 0.25, 'Je afstanden lopen uiteen; kijk naar de ruimte tussen de lijnen.']);
-        if (l.afwDoel > 0.3) kand.push([l.afwDoel / 0.3 * 0.8, l.mu > l.doel
-          ? 'Je lijnen staan te ver uit elkaar; zet ze dichter bij elkaar.'
-          : 'Je lijnen staan te dicht op elkaar; geef meer ruimte.']);
-      }
+  function tip(lagen, u) {
+    const max = (k) => Math.max(0, ...lagen.map((l) => (Number.isFinite(l[k]) ? l[k] : 0)));
+    const kop = 'Hoek ' + u.hoek + ' · Afstand ' + u.afstand + ' · Dekking ' + u.dekking + ' — ';
+    const zwak = [['hoek', u.hoek], ['afstand', u.afstand], ['dekking', u.dekking]].sort((a, b) => a[1] - b[1])[0];
+    if (zwak[1] >= 85) return kop + 'mooie, gelijkmatige arcering.';
+    let t;
+    if (zwak[0] === 'hoek') {
+      const kand = [
+        [max('sdHoek') / 6, 'Je lijnen zijn niet evenwijdig; de rode lijnen staan scheef. Beweeg vanuit je schouder.'],
+        [Math.max(0, ...lagen.map((l) => (Number.isFinite(l.gemDiff) ? Math.abs(l.gemDiff) : 0))) / 8, 'Al je lijnen wijken af van de hoek van het voorbeeld; kijk goed naar de schuine lijnen.'],
+        [max('r') / 0.05, 'Je lijnen buigen; trek ze in één vlotte beweging.'],
+      ].sort((a, b) => b[0] - a[0]);
+      t = 'Hoek is je zwakste punt. ' + kand[0][1];
+    } else if (zwak[0] === 'afstand') {
+      const g = lagen.find((l) => l.gatTeGroot), k = lagen.find((l) => l.gatTeKlein);
+      const tr = lagen.find((l) => l.trend > 0.3 && l.residCv < 0.25);
+      const vl = lagen.find((l) => l.verloopF !== undefined && l.verloopF < 0.2);
+      const afw = lagen.find((l) => l.afwDoel > 0.3);
+      if (vl) t = 'Laat de afstand tussen de lijnen geleidelijk kleiner worden naar één kant.';
+      else if (g) t = 'Er zitten gaten tussen je lijnen (rode vlakken); houd de ruimte overal gelijk.';
+      else if (k) t = 'Sommige lijnen staan te dicht op elkaar (rood); houd de ruimte overal gelijk.';
+      else if (tr) t = 'Je lijnen kruipen steeds dichter naar elkaar toe.';
+      else if (afw) t = afw.mu > afw.doel ? 'Je lijnen staan te ver uit elkaar; zet ze dichter bij elkaar.' : 'Je lijnen staan te dicht op elkaar; geef meer ruimte.';
+      else t = 'De ruimte tussen je lijnen is wisselend; kijk naar het voorbeeld.';
+      t = 'Afstand is je zwakste punt. ' + t;
+    } else {
+      t = 'Dekking is je zwakste punt. ' + (u.buitenPct > 4 ? 'Je gaat buiten de vorm (rood); stop je streek bij de rand.' : 'Er blijven stukken leeg (rood); vul de hele vorm.');
     }
-    const r = max('r');
-    if (r > 0.05) kand.push([r / 0.05, 'Je lijnen buigen; trek ze in één snelle beweging.']);
-    if (u.buitenPct > 5) kand.push([u.buitenPct / 5, 'Je gaat buiten de vorm; stop je streek bij de rand.']);
-    else if (u.dek < 0.8) kand.push([0.8 / Math.max(u.dek, 0.05), 'Je stopt te vroeg; vul de hele vorm.']);
-    if (u.cvDruk > 0.35) kand.push([u.cvDruk / 0.35, 'Houd je druk gelijk.']);
-    const slecht = kand.filter((k) => k[0] >= 1).sort((a, b) => b[0] - a[0]);
-    if (slecht.length) return slecht[0][1];
-    return u.score >= 85 ? 'Mooie, gelijkmatige arcering.' : 'Houd hoek en afstand overal gelijk.';
+    return kop + t;
   }
 
   // ---------- uitslag ----------
@@ -316,13 +330,25 @@
     ctx.fillStyle = vlak.kleur.fout;
     ctx.globalAlpha = 0.16;
     for (const [x, y] of u.onbedekt) ctx.fillRect(x - CEL / 2, y - CEL / 2, CEL, CEL);
+    // Te grote gaten tussen twee lijnen: duidelijker rood vlak (q = positie loodrecht op de lijnrichting).
+    ctx.globalAlpha = 0.28;
+    for (const g of u.gaten) {
+      const ux = Math.cos(g.th), uy = Math.sin(g.th), nx = -uy, ny = ux, L = o.D, s0 = o.cx * ux + o.cy * uy;
+      ctx.beginPath();
+      ctx.moveTo(nx * g.q0 + ux * (s0 + L), ny * g.q0 + uy * (s0 + L));
+      ctx.lineTo(nx * g.q1 + ux * (s0 + L), ny * g.q1 + uy * (s0 + L));
+      ctx.lineTo(nx * g.q1 + ux * (s0 - L), ny * g.q1 + uy * (s0 - L));
+      ctx.lineTo(nx * g.q0 + ux * (s0 - L), ny * g.q0 + uy * (s0 - L));
+      ctx.closePath();
+      ctx.fill();
+    }
     ctx.globalAlpha = 1;
     // Doelhoek als dunne lijnen.
     ctx.strokeStyle = vlak.kleur.goed;
     ctx.lineWidth = 1.5;
     for (const l of o.lagen) lijnen(ctx, o, l, l.verloop ? l.ideaal : l.voorbeeld);
     ctx.restore();
-    // Streken met afwijkende hoek of afstand.
+    // Streken met afwijkende hoek of te dicht op de buurman: rood.
     ctx.strokeStyle = vlak.kleur.fout;
     ctx.lineWidth = 4;
     ctx.lineCap = 'round';
@@ -335,20 +361,33 @@
       for (let k = 1; k < p.length; k++) ctx.lineTo(p[k].x, p[k].y);
       ctx.stroke();
     }
+    // Stukken buiten de vorm: rood.
+    ctx.lineWidth = 5;
+    for (const s of streken) {
+      const p = s.punten;
+      if (!p || p.length < 2) continue;
+      ctx.beginPath();
+      for (let k = 1; k < p.length; k++) {
+        if (buiten(o, p[k].x, p[k].y) > GRENS && buiten(o, p[k - 1].x, p[k - 1].y) > GRENS) { ctx.moveTo(p[k - 1].x, p[k - 1].y); ctx.lineTo(p[k].x, p[k].y); }
+      }
+      ctx.stroke();
+    }
     ctx.globalAlpha = 1;
   }
 
   Tekentrainer.registreer({
     id: 'arcering',
     naam: 'Arcering',
-    uitleg: 'Vul de vorm met evenwijdige lijnen: zelfde hoek, afstand en druk als het voorbeeld.',
+    uitleg: 'Vul de vorm met evenwijdige lijnen. Je score hangt af van drie dingen: Hoek (alle lijnen even schuin als het voorbeeld en recht), Afstand (overal dezelfde ruimte, geen gaten) en Dekking (de hele vorm gevuld, niet erbuiten). Pauzeren mag; tik op Klaar als je klaar bent.',
     fundament: 'Ritme en consistentie in evenwijdige lijnen; de basis voor schaduw, textuur en toon.',
     meerdereStreken: true,
-    stilNa: 1500,
     toonUitslag: 2200,
     nieuweOpgave,
     teken,
-    isKlaar: (o, streken) => geldigeStreken(o, streken).length >= MAX_STREKEN,
+    isKlaar: (o, streken) => {
+      const st = geldigeStreken(o, streken);
+      return st.length >= MAX_STREKEN && groepeer(o, st).every((g) => g.length >= 3);
+    },
     nakijken,
     tekenUitslag,
     scorePlek: (o) => ({ x: o.cx, y: o.cy }),

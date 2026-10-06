@@ -12,7 +12,7 @@
     5: { type: 'golf', ringen: 4, r: 0.04, gids: 'geen', draai: true, snel: true },
   };
   const WENDINGEN = { C: 0, S: 1, S2: 1, golf: 2 };
-  const HOEK_A = 4;           // graden: minimale amplitude voor een tekenwisseling van de kromming
+  const HOEK_A = 20;          // graden: minimale koersomkering voor een echte wending (pen-ruis blijft daaronder)
   const TRAAG = 0.12;         // mediane snelheid in W per seconde: daaronder is het "zeer traag"
   const TRAAG_N5 = 0.3;       // idem voor het minimumtempo van niveau 5
 
@@ -170,7 +170,7 @@
   function nakijken(o, streken) {
     const ruw = streken[streken.length - 1].punten;
     if (ruw.length < 12 || H.lengte(ruw) < 0.5 * o.lengte) return { ongeldig: 'Te kort: teken de hele lijn in één streek.' };
-    const W = o.W, ds = 0.01 * W, r = o.r;
+    const W = o.W, ds = 0.02 * W, r = o.r;   // grove stap: pen-ruis van 1-3 px geeft dan geen schijnknikken
     const P = opschonen(ruw, ds);
     const n = P.length;
     if (n < 12) return { ongeldig: 'Te kort: teken de hele lijn in één streek.' };
@@ -217,9 +217,9 @@
     // --- Tekenwisselingen van de kromming (hysterese op cumulatieve hoek) ---
     const cumA = [];
     { let c = 0; for (let j = 1; j < n - 1; j++) { c += theta[j] / RAD; cumA.push(c); } }
-    const glad = cumA.map((_, j) => {            // 5-punts gemiddelde tegen meetruis
+    const glad = cumA.map((_, j) => {            // 7-punts gemiddelde tegen meetruis
       let s = 0, k = 0;
-      for (let q = Math.max(0, j - 2); q <= Math.min(cumA.length - 1, j + 2); q++) { s += cumA[q]; k++; }
+      for (let q = Math.max(0, j - 3); q <= Math.min(cumA.length - 1, j + 3); q++) { s += cumA[q]; k++; }
       return s / k;
     });
     let dir = 0, ext = 0, mn = 0, mxv = 0, wissels = 0;
@@ -245,7 +245,7 @@
     const ruwheid = gemK > 0 ? H.sd(dK) / gemK : 0;
     const ruwPen = 20 * H.clamp((ruwheid - 1) / 2, 0, 1);
 
-    let vloeiend = 100 - 10 * hoekjes.length - 8 * extra - ruwPen;
+    let vloeiend = 100 - 10 * hoekjes.length - 3 * Math.min(extra, 4) - ruwPen;
     vloeiend = H.clamp(vloeiend, 0, 100);
 
     // --- Tempo ---
@@ -303,7 +303,9 @@
     if (reeks.length >= 3) afgesneden.push(reeks[Math.floor(reeks.length / 2)]);
 
     let score = 0.35 * doorgang + 0.40 * vloeiend + 0.25 * tempo;
-    if (verkeerdeWendingen) score = Math.min(score, 60);
+    // Geen harde plafond meer: een ontbrekende wending kost 20 punten, elke extra wending 4 (max 16).
+    if (wissels < o.wendingen) score -= 20 * (o.wendingen - wissels);
+    else score -= 4 * Math.min(extra, 4);
     score = Math.round(H.clamp(score, 0, 100));
 
     // --- Tip: de oorzaak met de grootste puntenverlies ---
