@@ -1,16 +1,26 @@
 // Stip naar stip: trek een rechte lijn van A naar B in één vloeiende armbeweging.
 (function () {
   const H = window.Hulp;
-  const START_TOL = 24; // px: verder van A starten = ongeldig
-
-  // Per niveau: lengte als fractie van de vlakbreedte, hoekregel, gids, grootte van stip B, tolerantie, tempo.
+  // Per niveau (alles hier te tunen):
+  //  len: lengtebanden (fractie van vlakbreedte); hoeken: 'hv' | '45' | 'vrij' | 'bijna' (bijna-horizontaal/verticaal, 3-9 graden scheef)
+  //  gids: 'aan' | 'vervaag' | 'uit'; aR / bR: grootte stip A / B (factor); startTol: px (verder van A starten = ongeldig);
+  //  recht: [goed, slecht] als fractie van L (afwijking: 0.6*max + 0.6*rms); eind: [px, fractie van L] tolerantie;
+  //  lMin: px; recht- en eindtolerantie rekenen met max(L, lMin), zodat korte lijnen niet onmogelijk strak hoeven;
+  //  vloei: [cv goed, cv slecht]; haper: aftrek (punten) per haperpunt in vloeiendheid; hapMult: extra aftrek op totaalscore per haper (max 3);
+  //  tempo: false of { basis ms, perPx ms/px, straf (max aftrek op totaalscore) }; w: weging [recht, eind, vloei].
+  const BASIS = { aR: 1, startTol: 24, recht: [0.01, 0.08], vloei: [0.25, 0.85], haper: 10, hapMult: 0, lMin: 0, tempo: false, w: [0.45, 0.30, 0.25] };
   const NIVEAUS = {
-    1: { len: [[0.35, 0.55]], hoeken: 'hv', gids: 'aan', bR: 1, eind: [8, 0.12], tempo: false },
-    2: { len: [[0.35, 0.55]], hoeken: '45', gids: 'aan', bR: 1, eind: [8, 0.12], tempo: false },
-    3: { len: [[0.35, 0.55]], hoeken: 'vrij', gids: 'vervaag', bR: 0.85, eind: [8, 0.12], tempo: false },
-    4: { len: [[0.10, 0.20], [0.60, 0.80]], hoeken: 'vrij', gids: 'uit', bR: 0.6, eind: [8, 0.12], tempo: false },
-    5: { len: [[0.10, 0.20], [0.35, 0.55], [0.60, 0.80]], hoeken: 'vrij', gids: 'uit', bR: 0.5, eind: [5, 0.07], tempo: true },
+    1: { len: [[0.35, 0.55]], hoeken: 'hv', gids: 'aan', bR: 1, eind: [8, 0.12] },
+    2: { len: [[0.35, 0.55]], hoeken: '45', gids: 'aan', bR: 1, eind: [8, 0.12] },
+    3: { len: [[0.35, 0.55]], hoeken: 'vrij', gids: 'vervaag', bR: 0.85, eind: [8, 0.12] },
+    4: { len: [[0.10, 0.20], [0.60, 0.80]], hoeken: 'vrij', gids: 'uit', aR: 0.8, bR: 0.5, startTol: 20,
+         recht: [0.005, 0.04], eind: [4, 0.05], vloei: [0.25, 0.8], lMin: 220, haper: 14, hapMult: 0.04,
+         tempo: { basis: 700, perPx: 1.8, straf: 0.3 } },
+    5: { len: [[0.10, 0.18], [0.65, 0.90]], hoeken: 'bijna', gids: 'uit', aR: 0.65, bR: 0.4, startTol: 16,
+         recht: [0.004, 0.022], eind: [3, 0.025], vloei: [0.28, 0.65], lMin: 260, haper: 20, hapMult: 0.08,
+         tempo: { basis: 500, perPx: 1.0, straf: 0.5 }, w: [0.40, 0.35, 0.25] },
   };
+  for (const k in NIVEAUS) NIVEAUS[k] = Object.assign({}, BASIS, NIVEAUS[k]);
 
   let laatsteHoek = null; // vorige looprichting (rad), om herhaling te voorkomen
 
@@ -27,7 +37,8 @@
     // Hoek kiezen, niet gelijk aan de vorige.
     let hoek;
     for (let poging = 0; poging < 30; poging++) {
-      if (n.hoeken === 'hv') hoek = rng.kies([0, 90, 180, 270]) * Math.PI / 180;
+      if (n.hoeken === 'bijna') hoek = (rng.kies([0, 90, 180, 270]) + rng.kies([-1, 1]) * rng.tussen(3, 9)) * Math.PI / 180;
+      else if (n.hoeken === 'hv') hoek = rng.kies([0, 90, 180, 270]) * Math.PI / 180;
       else if (n.hoeken === '45') hoek = rng.kies([0, 45, 90, 135, 180, 225, 270, 315]) * Math.PI / 180;
       else hoek = rng.tussen(0, 360) * Math.PI / 180;
       if (laatsteHoek === null || hoekVerschil(hoek, laatsteHoek) > (n.hoeken === 'vrij' ? 0.26 : 0.1)) break;
@@ -51,8 +62,9 @@
     const r = H.clamp(mn * 0.014, 6, 11);
     return {
       A, B, L, hoek, ux, uy, niveau,
-      rA: r, rB: r * n.bR,
+      rA: Math.max(3, r * n.aR), rB: Math.max(3, r * n.bR),
       gids: n.gids,
+      n,
       eind: n.eind,
       tempo: n.tempo,
       animeer: n.gids === 'vervaag',
@@ -105,7 +117,7 @@
     const ruw = streken[streken.length - 1].punten;
     const A = o.A, B = o.B, L = o.L;
     if (ruw.length < 8 || H.lengte(ruw) < 0.25 * L) return { ongeldig: 'Te kort. Trek de hele lijn van A naar B.' };
-    if (H.afstand(ruw[0], A) > START_TOL) return { ongeldig: 'Start op stip A en trek dan naar B.' };
+    if (H.afstand(ruw[0], A) > o.n.startTol) return { ongeldig: 'Start op stip A en trek dan naar B.' };
 
     const eerste = ruw[0], laatste = ruw[ruw.length - 1];
     const sx = laatste.x - eerste.x, sy = laatste.y - eerste.y;
@@ -119,12 +131,13 @@
     let dmax = 0, imax = 0;
     d.forEach((x, i) => { if (Math.abs(x) > dmax) { dmax = Math.abs(x); imax = i; } });
     const rms = Math.sqrt(H.gemiddelde(d.map((x) => x * x)));
+    const Lt = Math.max(L, o.n.lMin);
     const dm = Math.max(0, dmax - 1), rm = Math.max(0, rms - 0.5);
-    const sRecht = 100 * H.lin(0.6 * dm / L + 0.6 * rm / L, 0.01, 0.08);
+    const sRecht = 100 * H.lin(0.6 * dm / Lt + 0.6 * rm / Lt, o.n.recht[0], o.n.recht[1]);
 
     // Eindpunten.
     const e = (H.afstand(eerste, A) + H.afstand(laatste, B)) / 2;
-    const sEind = 100 * H.lin(e, o.eind[0], o.eind[0] + o.eind[1] * L);
+    const sEind = 100 * H.lin(e, o.eind[0], o.eind[0] + o.eind[1] * Lt);
 
     // Vloeiendheid.
     const v = gladdeSnelheden(ruw);
@@ -141,16 +154,17 @@
         in_ = laag;
       }
     }
-    const sVloei = H.clamp(100 * H.lin(cv, 0.25, 0.85) - 10 * hapers, 0, 100);
+    const sVloei = H.clamp(100 * H.lin(cv, o.n.vloei[0], o.n.vloei[1]) - o.n.haper * hapers, 0, 100);
 
     // Tempo (niveau 5).
     const duur = laatste.t - eerste.t;
-    const maxDuur = 500 + 1.5 * L;
+    const maxDuur = o.tempo ? o.tempo.basis + o.tempo.perPx * L : Infinity;
     const traag = o.tempo ? Math.max(0, duur / maxDuur - 1) : 0;
 
-    const w = o.tempo ? [0.40, 0.35, 0.25] : [0.45, 0.30, 0.25];
+    const w = o.n.w;
     let score = w[0] * sRecht + w[1] * sEind + w[2] * sVloei;
-    score *= 1 - 0.4 * H.clamp(traag, 0, 1);
+    if (o.tempo) score *= 1 - o.tempo.straf * H.clamp(traag, 0, 1);
+    score *= 1 - o.n.hapMult * Math.min(hapers, 3);
     score = Math.round(H.clamp(score, 0, 100));
 
     // Tips: kandidaten met ernst (1 = net over de drempel).

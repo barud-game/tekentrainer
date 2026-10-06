@@ -12,6 +12,29 @@
     5: { types: ['kader', 'middelpunt', 'punten'], r: [0.1, 0.34], tol: 0.08, ghost: 0 },
   };
 
+  // Toegestane opening (fractie van r) waarbij de cirkel nog 'gesloten' heet; strenger op hogere niveaus.
+  // Vanaf SLUIT_OPEN * tol geldt de cirkel als duidelijk open (score-cap, tip, rode markering).
+  const SLUIT_TOL = { 1: 0.20, 2: 0.18, 3: 0.15, 4: 0.13, 5: 0.10 };
+  const SLUIT_OPEN = 1.7;
+
+  // Sluiting: kleinste afstand tussen eind en begin, óók als de streek voorbij het beginpunt doortekent
+  // (eind tegen het begin-deel, begin tegen het eind-deel). Geeft {afstand, begin, eind} van de kleinste opening.
+  function sluiting(ruw, stap) {
+    const fijn = H.herbemonster(ruw, stap);
+    const n = fijn.length, deel = Math.max(2, Math.round(n * 0.3));
+    const begin = fijn[0], eind = fijn[n - 1];
+    let beste = { afstand: H.afstand(begin, eind), begin, eind };
+    for (let i = 0; i < deel; i++) {          // eind t.o.v. punten uit het begin-deel
+      const d = H.afstand(fijn[i], eind);
+      if (d < beste.afstand) beste = { afstand: d, begin: fijn[i], eind };
+    }
+    for (let i = n - deel; i < n; i++) {      // begin t.o.v. punten uit het eind-deel
+      const d = H.afstand(fijn[i], begin);
+      if (d < beste.afstand) beste = { afstand: d, begin, eind: fijn[i] };
+    }
+    return beste;
+  }
+
   function nieuweOpgave(niveau, rng, vlak) {
     const n = NIVEAUS[niveau];
     const kort = Math.min(vlak.w, vlak.h);
@@ -140,9 +163,13 @@
     const wissel = terug > 15;
 
     // Sluiting.
-    const gap = H.afstand(pts[0], pts[pts.length - 1]);
-    let G = H.lin(gap, 0.05 * r, 0.25 * r);
-    if (sweep < 330) G = Math.min(G, 0.5);
+    // Doortekenen voorbij het beginpunt (sweep >= 355 graden of eind raakt het begin-deel) telt als gesloten.
+    const sl = sluiting(ruw, Math.max(1, r / 25));
+    const sluitTol = SLUIT_TOL[o.niveau] || 0.12;
+    const gap = sweep >= 355 ? 0 : sl.afstand;
+    const gapRel = gap / r;
+    const open = gapRel > sluitTol * SLUIT_OPEN;
+    const G = H.lin(gapRel, sluitTol * 0.5, sluitTol * SLUIT_OPEN);
 
     // Doelmatch.
     let fout, dx = 0, dy = 0, dr = 0;
@@ -168,17 +195,17 @@
     let score = 100 * (0.40 * R + 0.20 * G + 0.25 * D + 0.15 * V);
     let traag = 0;
     if (o.niveau === 5 && duur > 1500) { traag = Math.min(25, (duur - 1500) / 100); score -= traag; }
-    if (gap > 0.25 * r) score = Math.min(score, 55); // duidelijk open: nooit een voldoende
+    if (open) score = Math.min(score, 55); // duidelijk open: nooit een voldoende
     score = Math.round(H.clamp(score, 0, 100));
 
     const ratio = asRatio(pts);
-    const info = { ratio, gap, r, dx, dy, dr, V, wissel, traag, R, D, score, tol: o.tol };
-    return { score, tip: tip(o, info), c, r, gap, ratio, e, begin: pts[0], eind: pts[pts.length - 1], pts };
+    const info = { ratio, gap, gapRel, open, sluitTol, r, dx, dy, dr, V, wissel, traag, R, D, score, tol: o.tol };
+    return { score, tip: tip(o, info), c, r, gap, gapRel, sluitTol, open, ratio, e, begin: sl.begin, eind: sl.eind, pts };
   }
 
   function tip(o, i) {
     const r = i.r;
-    if (i.gap > 0.25 * r) return 'Sluit de cirkel: ga door tot voorbij je beginpunt.';
+    if (i.open) return 'Sluit de cirkel: ga door tot voorbij je beginpunt.';
     if (i.ratio > 1.15) return 'Je cirkel is een ei: draai je hele arm mee, niet alleen je pols.';
     if (i.V < 0.35 || i.wissel) return 'Je haperde. Maak één rustige beweging; oefen eerst in de lucht.';
     const lim = Math.max(0.08, i.tol * 0.45) * o.r;
@@ -211,7 +238,7 @@
       if (u.ratio > 1.15 && u.pts) {
         u.pts.forEach((p, idx) => { if (Math.abs(u.e[idx]) > 0.08 * u.r) stip(ctx, p.x, p.y, 4, k.fout); });
       }
-      if (u.gap > 0.12 * u.r) {
+      if (u.gapRel > u.sluitTol) {
         ctx.strokeStyle = k.fout; ctx.lineWidth = 3;
         ctx.beginPath(); ctx.moveTo(u.begin.x, u.begin.y); ctx.lineTo(u.eind.x, u.eind.y); ctx.stroke();
         stip(ctx, u.begin.x, u.begin.y, 5, k.fout);
