@@ -1,0 +1,4123 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta charset="utf-8">
+<title>S Pen Tekentrainer</title>
+<meta name="theme-color" content="#e4e8ec">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Schibsted+Grotesk:wght@400;500;700;800&display=swap">
+<style>
+  /* Opzet: menu als schetsboek-index (groepen, kaarten met niveau-streepjes);
+     tekenscherm met een compacte tweeregelige balk en een zo groot mogelijk vel. */
+  :root {
+    --bg: #e4e8ec; --paper: #fafbfb; --fg: #181c22; --fg-soft: #56606c; --line: #c3cad2;
+    --accent: #b02a66; --good: #0063b3; --warn: #9a6200; --bad: #cc4a05;
+    --guide: #7a8694; --guide-soft: #c9d0d8; --ink: #11141a;
+    --kaart: #f4f6f8; --kaart-rand: #b9c1ca; --knop-tekst: #ffffff;
+    --font: "Schibsted Grotesk", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: "DM Mono", ui-monospace, "SF Mono", "Roboto Mono", Menlo, Consolas, monospace;
+    color-scheme: light;
+    height: 100%;
+  }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+    --bg: #101317; --paper: #1a1e24; --fg: #e9ecef; --fg-soft: #9ba5b1; --line: #343b44;
+    --accent: #f08cb4; --good: #5db8f5; --warn: #f0c040; --bad: #ff8a4a;
+    --guide: #7d8997; --guide-soft: #38414c; --ink: #f5f6f8;
+    --kaart: #171b20; --kaart-rand: #3a424c; --knop-tekst: #101317; color-scheme: dark; } }
+  :root[data-theme="dark"] {
+    --bg: #101317; --paper: #1a1e24; --fg: #e9ecef; --fg-soft: #9ba5b1; --line: #343b44;
+    --accent: #f08cb4; --good: #5db8f5; --warn: #f0c040; --bad: #ff8a4a;
+    --guide: #7d8997; --guide-soft: #38414c; --ink: #f5f6f8;
+    --kaart: #171b20; --kaart-rand: #3a424c; --knop-tekst: #101317; color-scheme: dark; }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font); overscroll-behavior: none; overflow-x: hidden; -webkit-text-size-adjust: 100%; }
+  button { font: inherit; color: inherit; background: none; border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px; cursor: pointer; touch-action: manipulation; }
+  button:focus-visible, input:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+  /* ---- menu ---- */
+  #menu { max-width: 820px; margin: 0 auto; min-height: 100%;
+    padding: calc(20px + env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) calc(36px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
+  #menu header { border-left: 4px solid var(--accent); padding: 2px 0 2px 12px; margin-bottom: 22px; }
+  #menu .kicker { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--fg-soft); margin: 0 0 4px; }
+  #menu h1 { font-size: 1.75rem; line-height: 1.1; font-weight: 800; letter-spacing: -0.02em; margin: 0 0 6px; }
+  #menu p.sub { color: var(--fg-soft); margin: 0; font-size: 0.95rem; line-height: 1.4; max-width: 46ch; }
+  .groep { margin: 0 0 24px; }
+  .groep h2 { display: flex; align-items: baseline; gap: 10px; margin: 0 0 10px; font-size: 0.8rem; font-weight: 500;
+    font-family: var(--mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--fg); }
+  .groep h2::after { content: ""; flex: 1; border-top: 1px dashed var(--kaart-rand); transform: translateY(-3px); }
+  .groep h2 small { font-size: inherit; color: var(--fg-soft); order: 3; }
+  .groep .rij { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
+  .kaart { position: relative; text-align: left; background: var(--kaart); border: 1px solid var(--kaart-rand); border-radius: 4px 14px 4px 14px;
+    padding: 12px 14px 12px; display: grid; grid-template-columns: 1fr auto; column-gap: 10px; row-gap: 4px; min-height: 108px; align-content: start;
+    transition: transform .12s ease, border-color .12s ease; }
+  .kaart:hover { border-color: var(--fg); }
+  .kaart:active { transform: translateY(1px); }
+  .kaart b { font-size: 1.1rem; font-weight: 700; letter-spacing: -0.01em; }
+  .kaart .fund { grid-column: 1 / -1; color: var(--fg-soft); font-size: 0.86rem; line-height: 1.35; }
+  .kaart .ico { width: 30px; height: 30px; color: var(--fg); grid-row: 1; grid-column: 2; }
+  .kaart .onder { grid-column: 1 / -1; margin-top: auto; padding-top: 8px; display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    font-family: var(--mono); font-size: 0.74rem; color: var(--fg-soft); }
+  .niv { display: inline-flex; gap: 3px; align-items: flex-end; }
+  .niv i { display: block; width: 7px; background: var(--guide-soft); border: 1px solid var(--guide); border-radius: 1px; }
+  .niv i:nth-child(1) { height: 7px; } .niv i:nth-child(2) { height: 10px; } .niv i:nth-child(3) { height: 13px; }
+  .niv i:nth-child(4) { height: 16px; } .niv i:nth-child(5) { height: 19px; }
+  .niv i.aan { background: var(--fg); border-color: var(--fg); }
+  .kaart .cijfers { text-align: right; font-variant-numeric: tabular-nums; color: var(--fg); }
+  .kaart .cijfers em { font-style: normal; color: var(--fg-soft); }
+  #instellingen { margin-top: 8px; padding-top: 14px; border-top: 1px solid var(--line); color: var(--fg-soft); font-size: 0.88rem; display: flex; gap: 10px; align-items: center; }
+  #instellingen input { width: 22px; height: 22px; accent-color: var(--accent); margin: 0; }
+  #instellingen label { padding: 6px 0; }
+
+  /* ---- tekenscherm ---- */
+  #oefening { position: fixed; inset: 0; display: flex; flex-direction: column; touch-action: none; user-select: none; -webkit-user-select: none; background: var(--bg); }
+  #balk { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto auto auto; align-items: center; gap: 4px 6px;
+    padding: calc(5px + env(safe-area-inset-top, 0px)) max(8px, env(safe-area-inset-right, 0px)) 5px max(8px, env(safe-area-inset-left, 0px));
+    border-bottom: 1px solid var(--kaart-rand); background: var(--bg); }
+  #balk button:not(.uitleg) { padding: 0; min-width: 40px; height: 40px; display: grid; place-items: center; font-size: 1.15rem; line-height: 1; background: var(--kaart); border-color: var(--kaart-rand); }
+  #balk .titel { font-weight: 800; font-size: 1.05rem; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-left: 4px; }
+  #balk .stand { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 0.74rem; color: var(--fg-soft); text-align: center; min-width: 4.4em; line-height: 1.15; }
+  #balk .stand b { display: block; font-size: 0.9rem; color: var(--fg); font-weight: 500; }
+  #balk .uitleg { background: none; border: 0; grid-column: 1 / -1; margin: 0; padding: 0 4px; color: var(--fg-soft); font-size: 0.86rem; line-height: 1.3; text-align: left; border: 0; border-radius: 0; height: auto; min-height: 0; cursor: pointer;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  #balk .uitleg.open { -webkit-line-clamp: unset; display: block; }
+  #vlak { flex: 1; position: relative; background: var(--paper); min-height: 0; }
+  #vlak canvas { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; }
+  #melding { position: absolute; left: 50%; top: 12px; transform: translateX(-50%); background: var(--fg); color: var(--bg); max-width: 90%; text-align: center;
+    padding: 7px 14px; border-radius: 6px; font-size: 0.9rem; font-weight: 500; opacity: 0; transition: opacity .2s; pointer-events: none; }
+  #melding.zicht { opacity: 1; }
+  #klaar { position: absolute; right: max(14px, env(safe-area-inset-right, 0px)); bottom: calc(14px + env(safe-area-inset-bottom, 0px)); background: var(--accent); color: var(--knop-tekst);
+    border: 0; border-radius: 4px 16px 4px 16px; min-width: 112px; min-height: 52px; padding: 0 24px; font-weight: 800; font-size: 1.05rem; letter-spacing: 0.01em; box-shadow: 0 2px 0 rgba(0,0,0,.25); }
+  #klaar:active { transform: translateY(1px); box-shadow: none; }
+  @media (prefers-reduced-motion: reduce) { #melding, .kaart { transition: none; } }
+</style>
+
+<section id="menu">
+  <header>
+    <p class="kicker">Schetsboek &middot; 11 oefeningen</p>
+    <h1>S Pen Tekentrainer</h1>
+    <p class="sub">Korte oefeningen voor een sterke basis. Elke streek wordt meteen nagekeken en het niveau groeit mee.</p>
+  </header>
+  <div id="lijst"></div>
+  <div id="instellingen">
+    <input type="checkbox" id="vingerAan"><label for="vingerAan">Ook met vinger of muis tekenen (om te testen)</label>
+  </div>
+</section>
+
+<section id="oefening" hidden>
+  <div id="balk">
+    <button id="terug" aria-label="Terug naar menu">&larr;</button>
+    <span class="titel" id="oTitel"></span>
+    <button id="nivMin" aria-label="Niveau omlaag">&minus;</button>
+    <span class="stand" id="oStand"></span>
+    <button id="nivPlus" aria-label="Niveau omhoog">+</button>
+    <button id="volScherm" aria-label="Volledig scherm"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8V3h5M12 3h5v5M17 12v5h-5M8 17H3v-5"/></svg></button>
+    <button class="uitleg" id="oUitleg" type="button" aria-label="Uitleg, tik om uit te klappen"></button>
+  </div>
+  <div id="vlak">
+    <canvas id="doek"></canvas>
+    <div id="melding"></div>
+    <button id="klaar" hidden>Klaar</button>
+  </div>
+</section>
+
+<script>
+/* hulp.js */
+// Gedeelde rekenhulpjes voor alle oefeningen. Alles werkt met punten {x, y, p, t}
+// (x/y in CSS-pixels van het tekenvlak, p = druk 0..1, t = tijd in ms).
+window.Hulp = (function () {
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+  // 1 bij x <= goed, 0 bij x >= slecht, lineair ertussen (werkt ook als goed > slecht).
+  function lin(x, goed, slecht) {
+    if (goed === slecht) return x <= goed ? 1 : 0;
+    return clamp((slecht - x) / (slecht - goed), 0, 1);
+  }
+
+  const afstand = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+
+  function lengte(pts) {
+    let s = 0;
+    for (let i = 1; i < pts.length; i++) s += afstand(pts[i - 1], pts[i]);
+    return s;
+  }
+
+  // Herbemonster op gelijke afstand 'stap' (px); p en t worden meegeïnterpoleerd.
+  function herbemonster(pts, stap) {
+    if (pts.length < 2) return pts.slice();
+    const uit = [Object.assign({}, pts[0])];
+    let rest = 0;
+    for (let i = 1; i < pts.length; i++) {
+      const a = pts[i - 1], b = pts[i];
+      const d = afstand(a, b);
+      if (d === 0) continue;
+      let pos = stap - rest;
+      while (pos <= d) {
+        const f = pos / d;
+        uit.push({ x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f, p: a.p + (b.p - a.p) * f, t: a.t + (b.t - a.t) * f });
+        pos += stap;
+      }
+      rest = d - (pos - stap);
+    }
+    const last = pts[pts.length - 1];
+    if (afstand(uit[uit.length - 1], last) > stap * 0.3) uit.push(Object.assign({}, last));
+    return uit;
+  }
+
+  // Herbemonster naar precies n punten.
+  function herbemonsterN(pts, n) {
+    const L = lengte(pts);
+    if (L === 0 || n < 2) return pts.slice(0, n);
+    const r = herbemonster(pts, L / (n - 1));
+    while (r.length > n) r.pop();
+    while (r.length < n) r.push(Object.assign({}, pts[pts.length - 1]));
+    return r;
+  }
+
+  function gemiddelde(arr) { return arr.length ? arr.reduce((s, v) => s + v, 0) / arr.length : 0; }
+  function sd(arr) { const m = gemiddelde(arr); return Math.sqrt(gemiddelde(arr.map((v) => (v - m) ** 2))); }
+  function mediaan(arr) {
+    if (!arr.length) return 0;
+    const s = arr.slice().sort((a, b) => a - b), k = s.length >> 1;
+    return s.length % 2 ? s[k] : (s[k - 1] + s[k]) / 2;
+  }
+
+  // Beste rechte lijn door de punten (PCA). Geeft midden, eenheidsrichting en hoek (rad).
+  function lijnFit(pts) {
+    const mx = gemiddelde(pts.map((p) => p.x)), my = gemiddelde(pts.map((p) => p.y));
+    let sxx = 0, syy = 0, sxy = 0;
+    for (const p of pts) { const dx = p.x - mx, dy = p.y - my; sxx += dx * dx; syy += dy * dy; sxy += dx * dy; }
+    const hoek = 0.5 * Math.atan2(2 * sxy, sxx - syy);
+    return { mx, my, dx: Math.cos(hoek), dy: Math.sin(hoek), hoek };
+  }
+
+  // Loodrechte (gesigneerde) afstand van punt tot lijn door a met richting (dx, dy).
+  function lijnAfstand(p, a, dx, dy) { return (p.x - a.x) * -dy + (p.y - a.y) * dx; }
+
+  // Afstand van punt tot lijnstuk a-b.
+  function segmentAfstand(p, a, b) {
+    const vx = b.x - a.x, vy = b.y - a.y, L2 = vx * vx + vy * vy;
+    const f = L2 ? clamp(((p.x - a.x) * vx + (p.y - a.y) * vy) / L2, 0, 1) : 0;
+    return Math.hypot(p.x - (a.x + vx * f), p.y - (a.y + vy * f));
+  }
+
+  // Kleinste afstand van punt tot een polylijn.
+  function polyAfstand(p, poly) {
+    let m = Infinity;
+    for (let i = 1; i < poly.length; i++) m = Math.min(m, segmentAfstand(p, poly[i - 1], poly[i]));
+    return m;
+  }
+
+  // Snelheden (px/ms) tussen opeenvolgende punten, met tijd > 0.
+  function snelheden(pts) {
+    const v = [];
+    for (let i = 1; i < pts.length; i++) {
+      const dt = pts[i].t - pts[i - 1].t;
+      if (dt > 0) v.push(afstand(pts[i - 1], pts[i]) / dt);
+    }
+    return v;
+  }
+
+  // Hoekverschil tussen twee richtingen in graden, voor lijnen zonder richting (0..90).
+  function lijnHoekVerschil(a, b) {
+    let d = Math.abs(a - b) % Math.PI;
+    if (d > Math.PI / 2) d = Math.PI - d;
+    return d * 180 / Math.PI;
+  }
+
+  // Kleine voorspelbare random-generator: rng() -> 0..1. Met rng.tussen(a, b) en rng.kies(lijst).
+  function maakRng(seed) {
+    let s = (seed >>> 0) || 1;
+    const rng = () => { s ^= s << 13; s ^= s >>> 17; s ^= s << 5; return ((s >>> 0) % 1e9) / 1e9; };
+    rng.tussen = (a, b) => a + (b - a) * rng();
+    rng.kies = (lijst) => lijst[Math.floor(rng() * lijst.length)];
+    return rng;
+  }
+
+  return { clamp, lin, afstand, lengte, herbemonster, herbemonsterN, gemiddelde, sd, mediaan,
+    lijnFit, lijnAfstand, segmentAfstand, polyAfstand, snelheden, lijnHoekVerschil, maakRng };
+})();
+
+</script>
+<script>
+// ---------- register ----------
+window.Tekentrainer = { oefeningen: [], registreer(o) { this.oefeningen.push(o); } };
+</script>
+<script>
+/* oefeningen/ellipsen.js */
+// Ellipsen in een kader, van bijna-cirkel (niveau 1) tot smal en gedraaid (niveau 5).
+(function () {
+  const H = window.Hulp;
+  const BINS = 72;
+
+  // Per niveau: verhouding lange/korte as, draaiing, grootte (fractie van het vlak), hulp.
+  const NIVEAUS = {
+    1: { ratio: [1.0, 1.3], draai: [0, 0], maat: [0.62, 0.72], ghost: 0.5, streepjes: true },
+    2: { ratio: [1.25, 1.7], draai: [0, 90], maat: [0.55, 0.7], ghost: 0.25, streepjes: true },
+    3: { ratio: [1.4, 2.1], draai: [-35, 35], maat: [0.5, 0.68], ghost: 0, streepjes: true },
+    4: { ratio: [1.6, 2.6], draai: [-90, 90], maat: [0.4, 0.62], ghost: 0, streepjes: true },
+    5: { ratio: [2.0, 3.4], draai: [-90, 90], maat: [0.32, 0.58], ghost: 0, streepjes: false },
+  };
+
+  function nieuweOpgave(niveau, rng, vlak) {
+    const n = NIVEAUS[niveau];
+    const ratio = rng.tussen(n.ratio[0], n.ratio[1]);
+    const draai = niveau === 2 ? rng.kies([0, 90]) : rng.tussen(n.draai[0], n.draai[1]);
+    const t = draai * Math.PI / 180;
+    // Lange as zo groot als past: de gedraaide omhullende moet binnen het vlak blijven.
+    const want = rng.tussen(n.maat[0], n.maat[1]);
+    let a = want * Math.min(vlak.w, vlak.h) * 0.5 * Math.sqrt(ratio);
+    let b = a / ratio;
+    const halfW = Math.abs(a * Math.cos(t)) + Math.abs(b * Math.sin(t));
+    const halfH = Math.abs(a * Math.sin(t)) + Math.abs(b * Math.cos(t));
+    const k = Math.min(1, (vlak.w * 0.44) / halfW, (vlak.h * 0.40) / halfH);
+    a *= k; b *= k;
+    return {
+      cx: vlak.w / 2 + rng.tussen(-0.04, 0.04) * vlak.w,
+      cy: vlak.h * 0.53 + rng.tussen(-0.03, 0.03) * vlak.h,
+      a, b, t, ghost: n.ghost, streepjes: n.streepjes,
+    };
+  }
+
+  function inLokaal(ctx, o, fn) {
+    ctx.save();
+    ctx.translate(o.cx, o.cy);
+    ctx.rotate(o.t);
+    fn();
+    ctx.restore();
+  }
+
+  function teken(ctx, o, vlak) {
+    inLokaal(ctx, o, () => {
+      ctx.strokeStyle = vlak.kleur.hulp;
+      ctx.lineWidth = 2;
+      ctx.strokeRect(-o.a, -o.b, 2 * o.a, 2 * o.b);
+      if (o.streepjes) {
+        const s = 12;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(-o.a - s, 0); ctx.lineTo(-o.a + s, 0);
+        ctx.moveTo(o.a - s, 0); ctx.lineTo(o.a + s, 0);
+        ctx.moveTo(0, -o.b - s); ctx.lineTo(0, -o.b + s);
+        ctx.moveTo(0, o.b - s); ctx.lineTo(0, o.b + s);
+        ctx.stroke();
+      }
+      if (o.ghost > 0) {
+        ctx.globalAlpha = o.ghost;
+        ctx.strokeStyle = vlak.kleur.hulpZacht;
+        ctx.lineWidth = 6;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, o.a, o.b, 0, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    });
+  }
+
+  // Punt naar ellips-assenstelsel.
+  function lokaal(o, p) {
+    const dx = p.x - o.cx, dy = p.y - o.cy, c = Math.cos(o.t), s = Math.sin(o.t);
+    return { u: dx * c + dy * s, v: -dx * s + dy * c };
+  }
+
+  function nakijken(o, streken) {
+    const ruw = streken[streken.length - 1].punten;
+    if (ruw.length < 8 || H.lengte(ruw) < (o.a + o.b) * 1.5) return { ongeldig: 'Te kort: teken de hele ellips in één streek.' };
+    const pts = H.herbemonster(ruw, 2);
+    const size = (o.a + o.b) / 2;
+    const bins = Array.from({ length: BINS }, () => []);
+    let stray = 0;
+    for (const p of pts) {
+      const { u, v } = lokaal(o, p);
+      const r = Math.hypot(u / o.a, v / o.b);
+      if (r < 0.5 || r > 1.7) { stray++; continue; }
+      // Afstand tot de ideale ellips langs de straal vanuit het midden (+ = buiten).
+      const d = Math.hypot(u, v) * (1 - 1 / r);
+      const phi = Math.atan2(v / o.b, u / o.a);
+      bins[Math.floor((phi + Math.PI) / (2 * Math.PI) * BINS) % BINS].push(d);
+    }
+    const offs = bins.map((b) => (b.length ? H.gemiddelde(b) : null));
+    const gedekt = offs.filter((x) => x !== null);
+    if (!gedekt.length) return { ongeldig: 'Teken de ellips in het kader.' };
+
+    const dekking = gedekt.length / BINS;
+    const fout = H.gemiddelde(gedekt.map(Math.abs)) / size;
+    const strayFrac = stray / pts.length;
+    const score = Math.round(100 * H.lin(fout, 0.012, 0.11) * Math.pow(dekking, 2) * (1 - Math.min(0.5, strayFrac)));
+
+    return { score, tip: tip(offs, dekking, strayFrac, size, score), offs };
+  }
+
+  function tip(offs, dekking, strayFrac, size, score) {
+    const waar = (cond) => {
+      const v = offs.filter((o, k) => o !== null && cond(-Math.PI + (k + 0.5) * 2 * Math.PI / BINS));
+      return v.length ? H.gemiddelde(v) : 0;
+    };
+    const zij = waar((f) => Math.abs(Math.cos(f)) > 0.95);
+    const bovenOnder = waar((f) => Math.abs(Math.sin(f)) > 0.95);
+    const diag = waar((f) => Math.abs(Math.cos(f)) > 0.55 && Math.abs(Math.cos(f)) < 0.85) - (zij + bovenOnder) / 2;
+    const opties = [
+      [diag, 'Puntige uiteinden (een oog). Houd je tempo in de bocht en draai rond.', 'Te hoekig. Laat de bochten soepeler verlopen.'],
+      [zij, 'Raakt de korte zijden niet. Ga verder door naar de streepjes.', 'Schiet over de korte zijden heen.'],
+      [bovenOnder, 'Raakt de lange zijden niet. Maak hem boller.', 'Steekt over de lange zijden heen.'],
+    ];
+    const tips = [];
+    if (dekking < 0.9) tips.push([1, 'Niet gesloten. Ga door tot voorbij je beginpunt.']);
+    for (const [v, neg, pos] of opties) if (Math.abs(v) > 0.035 * size) tips.push([Math.abs(v) / size, v < 0 ? neg : pos]);
+    if (strayFrac > 0.1) tips.push([strayFrac, 'Een deel van je lijn ligt ver naast de vorm.']);
+    if (!tips.length) return score >= 85 ? 'Mooi rond en gesloten.' : 'Lijn wiebelt. Trek sneller vanuit je schouder.';
+    tips.sort((x, y) => y[0] - x[0]);
+    return tips[0][1];
+  }
+
+  function tekenUitslag(ctx, o, streken, u, vlak) {
+    const size = (o.a + o.b) / 2;
+    inLokaal(ctx, o, () => {
+      ctx.setLineDash([10, 8]);
+      ctx.strokeStyle = vlak.kleur.goed;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, o.a, o.b, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      for (let k = 0; k < BINS; k++) {
+        const off = u.offs[k];
+        const phi = -Math.PI + (k + 0.5) * 2 * Math.PI / BINS;
+        const x = o.a * Math.cos(phi), y = o.b * Math.sin(phi);
+        if (off === null) { ctx.fillStyle = vlak.kleur.tekstZacht; ctx.beginPath(); ctx.arc(x, y, 3, 0, 7); ctx.fill(); }
+        else if (Math.abs(off) > 0.06 * size) { ctx.fillStyle = vlak.kleur.fout; ctx.beginPath(); ctx.arc(x, y, 4.5, 0, 7); ctx.fill(); }
+      }
+    });
+  }
+
+  Tekentrainer.registreer({
+    id: 'ellipsen',
+    naam: 'Ellipsen',
+    uitleg: 'Teken in één streek een ellips die alle vier de zijden van het kader raakt.',
+    fundament: 'Gesloten, ronde vormen vanuit je schouder; de basis van elk 3D-object.',
+    meerdereStreken: false,
+    toonUitslag: 1300,
+    nieuweOpgave,
+    teken,
+    nakijken,
+    tekenUitslag,
+    scorePlek: (o) => ({ x: o.cx, y: o.cy }),
+  });
+})();
+
+</script>
+<script>
+/* oefeningen/lijnen.js */
+// Stip naar stip: trek een rechte lijn van A naar B in één vloeiende armbeweging.
+(function () {
+  const H = window.Hulp;
+  const START_TOL = 24; // px: verder van A starten = ongeldig
+
+  // Per niveau: lengte als fractie van de vlakbreedte, hoekregel, gids, grootte van stip B, tolerantie, tempo.
+  const NIVEAUS = {
+    1: { len: [[0.35, 0.55]], hoeken: 'hv', gids: 'aan', bR: 1, eind: [8, 0.12], tempo: false },
+    2: { len: [[0.35, 0.55]], hoeken: '45', gids: 'aan', bR: 1, eind: [8, 0.12], tempo: false },
+    3: { len: [[0.35, 0.55]], hoeken: 'vrij', gids: 'vervaag', bR: 0.85, eind: [8, 0.12], tempo: false },
+    4: { len: [[0.10, 0.20], [0.60, 0.80]], hoeken: 'vrij', gids: 'uit', bR: 0.6, eind: [8, 0.12], tempo: false },
+    5: { len: [[0.10, 0.20], [0.35, 0.55], [0.60, 0.80]], hoeken: 'vrij', gids: 'uit', bR: 0.5, eind: [5, 0.07], tempo: true },
+  };
+
+  let laatsteHoek = null; // vorige looprichting (rad), om herhaling te voorkomen
+
+  const hoekVerschil = (a, b) => {
+    let d = Math.abs(a - b) % (2 * Math.PI);
+    return d > Math.PI ? 2 * Math.PI - d : d;
+  };
+
+  function nieuweOpgave(niveau, rng, vlak) {
+    const n = NIVEAUS[niveau];
+    const mn = Math.min(vlak.w, vlak.h);
+    const marge = Math.max(14, mn * 0.08);
+
+    // Hoek kiezen, niet gelijk aan de vorige.
+    let hoek;
+    for (let poging = 0; poging < 30; poging++) {
+      if (n.hoeken === 'hv') hoek = rng.kies([0, 90, 180, 270]) * Math.PI / 180;
+      else if (n.hoeken === '45') hoek = rng.kies([0, 45, 90, 135, 180, 225, 270, 315]) * Math.PI / 180;
+      else hoek = rng.tussen(0, 360) * Math.PI / 180;
+      if (laatsteHoek === null || hoekVerschil(hoek, laatsteHoek) > (n.hoeken === 'vrij' ? 0.26 : 0.1)) break;
+    }
+    laatsteHoek = hoek;
+    const ux = Math.cos(hoek), uy = Math.sin(hoek);
+
+    // Lengte, begrensd zodat de lijn in het vlak past.
+    const band = rng.kies(n.len);
+    let L = rng.tussen(band[0], band[1]) * vlak.w;
+    const kx = Math.abs(ux) > 1e-6 ? (vlak.w - 2 * marge) / Math.abs(ux) : Infinity;
+    const ky = Math.abs(uy) > 1e-6 ? (vlak.h - 2 * marge) / Math.abs(uy) : Infinity;
+    L = Math.min(L, kx, ky);
+
+    // Midden zo kiezen dat beide uiteinden binnen de marge liggen.
+    const hx = Math.abs(ux) * L / 2, hy = Math.abs(uy) * L / 2;
+    const cx = rng.tussen(marge + hx, vlak.w - marge - hx);
+    const cy = rng.tussen(marge + hy, vlak.h - marge - hy);
+    const A = { x: cx - ux * L / 2, y: cy - uy * L / 2 };
+    const B = { x: cx + ux * L / 2, y: cy + uy * L / 2 };
+    const r = H.clamp(mn * 0.014, 6, 11);
+    return {
+      A, B, L, hoek, ux, uy, niveau,
+      rA: r, rB: r * n.bR,
+      gids: n.gids,
+      eind: n.eind,
+      tempo: n.tempo,
+      animeer: n.gids === 'vervaag',
+    };
+  }
+
+  function teken(ctx, o, vlak, info) {
+    let alpha = 1;
+    if (o.gids === 'uit') alpha = 0;
+    else if (o.gids === 'vervaag') alpha = 1 - H.clamp((info.sinds - 500) / 400, 0, 1);
+    if (alpha > 0) {
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.strokeStyle = vlak.kleur.hulp;
+      ctx.lineWidth = 2;
+      ctx.setLineDash([8, 8]);
+      ctx.beginPath();
+      ctx.moveTo(o.A.x, o.A.y);
+      ctx.lineTo(o.B.x, o.B.y);
+      ctx.stroke();
+      ctx.restore();
+    }
+    // B: ring met stip
+    ctx.save();
+    ctx.strokeStyle = vlak.kleur.hulp;
+    ctx.fillStyle = vlak.kleur.hulp;
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(o.B.x, o.B.y, o.rB, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(o.B.x, o.B.y, Math.max(1.5, o.rB * 0.3), 0, Math.PI * 2); ctx.fill();
+    // A: gevulde accentstip
+    ctx.fillStyle = vlak.kleur.accent;
+    ctx.beginPath(); ctx.arc(o.A.x, o.A.y, o.rA, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+
+  // Snelheden (px/ms): punten minstens 12 ms uit elkaar, daarna 3-punts gladding.
+  function gladdeSnelheden(pts) {
+    const dun = [pts[0]];
+    for (let i = 1; i < pts.length; i++) {
+      if (pts[i].t - dun[dun.length - 1].t >= 12 || i === pts.length - 1) dun.push(pts[i]);
+    }
+    const v = H.snelheden(dun);
+    return v.map((x, i) => {
+      const a = v[Math.max(0, i - 1)], c = v[Math.min(v.length - 1, i + 1)];
+      return (a + x + c) / 3;
+    });
+  }
+
+  function nakijken(o, streken) {
+    const ruw = streken[streken.length - 1].punten;
+    const A = o.A, B = o.B, L = o.L;
+    if (ruw.length < 8 || H.lengte(ruw) < 0.25 * L) return { ongeldig: 'Te kort. Trek de hele lijn van A naar B.' };
+    if (H.afstand(ruw[0], A) > START_TOL) return { ongeldig: 'Start op stip A en trek dan naar B.' };
+
+    const eerste = ruw[0], laatste = ruw[ruw.length - 1];
+    const sx = laatste.x - eerste.x, sy = laatste.y - eerste.y;
+    const sl = Math.hypot(sx, sy);
+    if (sl < 0.2 * L) return { ongeldig: 'Te kort. Trek de hele lijn van A naar B.' };
+    const dx = sx / sl, dy = sy / sl;
+
+    // Rechtheid: gesigneerde afstand tot de lijn eerste -> laatste punt (herbemonsterd op 3 px).
+    const pts = H.herbemonster(ruw, 3);
+    const d = pts.map((p) => H.lijnAfstand(p, eerste, dx, dy));
+    let dmax = 0, imax = 0;
+    d.forEach((x, i) => { if (Math.abs(x) > dmax) { dmax = Math.abs(x); imax = i; } });
+    const rms = Math.sqrt(H.gemiddelde(d.map((x) => x * x)));
+    const dm = Math.max(0, dmax - 1), rm = Math.max(0, rms - 0.5);
+    const sRecht = 100 * H.lin(0.6 * dm / L + 0.6 * rm / L, 0.01, 0.08);
+
+    // Eindpunten.
+    const e = (H.afstand(eerste, A) + H.afstand(laatste, B)) / 2;
+    const sEind = 100 * H.lin(e, o.eind[0], o.eind[0] + o.eind[1] * L);
+
+    // Vloeiendheid.
+    const v = gladdeSnelheden(ruw);
+    const lo = Math.floor(v.length * 0.15), hi = Math.ceil(v.length * 0.85);
+    const mid = v.slice(lo, hi);
+    let cv = 0, hapers = 0;
+    if (mid.length >= 3) {
+      const gem = H.gemiddelde(mid);
+      cv = gem > 0 ? H.sd(mid) / gem : 1;
+      let in_ = false;
+      for (const x of mid) {
+        const laag = x < 0.2 * gem;
+        if (laag && !in_) hapers++;
+        in_ = laag;
+      }
+    }
+    const sVloei = H.clamp(100 * H.lin(cv, 0.25, 0.85) - 10 * hapers, 0, 100);
+
+    // Tempo (niveau 5).
+    const duur = laatste.t - eerste.t;
+    const maxDuur = 500 + 1.5 * L;
+    const traag = o.tempo ? Math.max(0, duur / maxDuur - 1) : 0;
+
+    const w = o.tempo ? [0.40, 0.35, 0.25] : [0.45, 0.30, 0.25];
+    let score = w[0] * sRecht + w[1] * sEind + w[2] * sVloei;
+    score *= 1 - 0.4 * H.clamp(traag, 0, 1);
+    score = Math.round(H.clamp(score, 0, 100));
+
+    // Tips: kandidaten met ernst (1 = net over de drempel).
+    const mid3 = d.slice(Math.floor(d.length * 0.1), Math.ceil(d.length * 0.9));
+    const med = H.mediaan(mid3);
+    const zelfdeKant = mid3.filter((x) => Math.sign(x) === Math.sign(med)).length / Math.max(1, mid3.length);
+    const proj = ((laatste.x - A.x) * o.ux + (laatste.y - A.y) * o.uy) / L;
+    let trilling = 0;
+    const dd = d;
+    if (dd.length > 4) {
+      let s = 0;
+      for (let i = 1; i < dd.length - 1; i++) s += Math.abs(dd[i] - (dd[i - 1] + dd[i + 1]) / 2);
+      trilling = s / (dd.length - 2);
+    }
+    const tips = [];
+    if (Math.abs(med) > 0.02 * L && zelfdeKant > 0.75) {
+      tips.push([Math.abs(med) / (0.02 * L), 'Je lijn buigt naar ' + (med > 0 ? 'rechts' : 'links') + '; trek vanuit je schouder.']);
+    }
+    if (hapers >= 2 || cv > 0.6) tips.push([Math.max(hapers / 2, cv / 0.6), 'Je stopt halverwege; trek in één vloeiende beweging.']);
+    if (proj < 0.9) tips.push([(1 - proj) / 0.1,'Je schiet te kort; kijk naar B, niet naar je pen.']);
+    else if (proj > 1.1) tips.push([(proj - 1) / 0.1, 'Je schiet te ver door; kijk naar B, niet naar je pen.']);
+    if (trilling > 0.8) tips.push([trilling / 0.8, 'Je lijn trilt; ontspan je greep.']);
+    if (traag > 0.1) tips.push([traag / 0.1, 'Te traag; trek in één snelle beweging.']);
+    tips.sort((a, b) => b[0] - a[0]);
+    const tip = tips.length ? tips[0][1] : (score >= 85 ? 'Mooi recht, in één beweging.' : 'Let op je eindpunten: begin en eindig op de stippen.');
+
+    return { score, tip, sRecht, sEind, sVloei, cv, hapers, dmax, maxPunt: pts[imax], maxD: d[imax], proj, trilling, duur };
+  }
+
+  function tekenUitslag(ctx, o, streken, u, vlak) {
+    ctx.save();
+    ctx.setLineDash([10, 8]);
+    ctx.strokeStyle = vlak.kleur.goed;
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(o.A.x, o.A.y);
+    ctx.lineTo(o.B.x, o.B.y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    if (u.maxPunt && Math.abs(u.maxD) > Math.max(4, 0.02 * o.L)) {
+      const p = u.maxPunt;
+      const k = H.clamp(((p.x - o.A.x) * o.ux + (p.y - o.A.y) * o.uy), 0, o.L);
+      const q = { x: o.A.x + o.ux * k, y: o.A.y + o.uy * k };
+      ctx.strokeStyle = vlak.kleur.fout;
+      ctx.fillStyle = vlak.kleur.fout;
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(q.x, q.y); ctx.lineTo(p.x, p.y); ctx.stroke();
+      ctx.beginPath(); ctx.arc(p.x, p.y, 5, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  // Zoek een plek voor score + tip die de lijn zo min mogelijk bedekt.
+  function scorePlek(o, vlak) {
+    const mn = Math.min(vlak.w, vlak.h);
+    const g = H.clamp(mn * 0.14, 40, 96);
+    const hw = Math.min(vlak.w * 0.45, 200);
+    const boven = g / 2 + 4, onder = g * 0.62 + 18;
+    const midX = (o.A.x + o.B.x) / 2, midY = (o.A.y + o.B.y) / 2;
+    const xs = [], ys = [];
+    const xlo = Math.min(hw, vlak.w / 2), xhi = Math.max(vlak.w - hw, vlak.w / 2);
+    for (let i = 0; i <= 8; i++) xs.push(xlo + (xhi - xlo) * i / 8);
+    const ylo = boven, yhi = Math.max(boven, vlak.h - onder);
+    for (let i = 0; i <= 12; i++) ys.push(ylo + (yhi - ylo) * i / 12);
+    let beste = { x: vlak.w / 2, y: vlak.h / 2 }, bestScore = -Infinity;
+    for (const x of xs) for (const y of ys) {
+      const r = { l: x - hw, r: x + hw, t: y - g / 2, b: y + onder };
+      let dmin = Infinity;
+      for (let i = 0; i <= 40; i++) {
+        const f = i / 40, px = o.A.x + (o.B.x - o.A.x) * f, py = o.A.y + (o.B.y - o.A.y) * f;
+        const ddx = Math.max(r.l - px, 0, px - r.r), ddy = Math.max(r.t - py, 0, py - r.b);
+        dmin = Math.min(dmin, Math.hypot(ddx, ddy));
+      }
+      const s = Math.min(dmin, 50) - 0.02 * Math.hypot(x - midX, y - midY);
+      if (s > bestScore) { bestScore = s; beste = { x, y }; }
+    }
+    return beste;
+  }
+
+  Tekentrainer.registreer({
+    id: 'lijnen',
+    naam: 'Lijnen',
+    uitleg: 'Trek in één vloeiende beweging een rechte lijn van stip A naar stip B.',
+    fundament: 'Rechte lijnen vanuit je schouder en elleboog; de basis van contouren, perspectief en arcering.',
+    meerdereStreken: false,
+    toonUitslag: 1400,
+    nieuweOpgave,
+    teken,
+    nakijken,
+    tekenUitslag,
+    scorePlek,
+  });
+})();
+
+</script>
+<script>
+/* oefeningen/cirkels.js */
+// Cirkels: één vloeiende, gesloten boog met de juiste maat en plek ("Rond sluiten").
+(function () {
+  const H = window.Hulp;
+  const TAU = Math.PI * 2;
+
+  // Per niveau: types, straal (fractie van korte zijde), tolerantie (fractie van doelstraal), hulp.
+  const NIVEAUS = {
+    1: { types: ['kader'], r: [0.27, 0.32], tol: 0.30, ghost: 0.4 },
+    2: { types: ['middelpunt'], r: [0.2, 0.3], tol: 0.20, ghost: 0 },
+    3: { types: ['punten'], r: [0.15, 0.33], tol: 0.15, ghost: 0 },
+    4: { types: ['middelpunt'], r: [0.1, 0.2], tol: 0.11, ghost: 0, verbergNa: 1000 },
+    5: { types: ['kader', 'middelpunt', 'punten'], r: [0.1, 0.34], tol: 0.08, ghost: 0 },
+  };
+
+  function nieuweOpgave(niveau, rng, vlak) {
+    const n = NIVEAUS[niveau];
+    const kort = Math.min(vlak.w, vlak.h);
+    const type = rng.kies(n.types);
+    const r = rng.tussen(n.r[0], n.r[1]) * kort;
+    const m = 0.04 * kort + 4;
+    const ruimteX = Math.max(0, vlak.w / 2 - r - m), ruimteY = Math.max(0, vlak.h / 2 - r - m);
+    const cx = vlak.w / 2 + rng.tussen(-1, 1) * Math.min(ruimteX, niveau === 1 ? 0.05 * vlak.w : ruimteX);
+    const cy = vlak.h * 0.52 + rng.tussen(-1, 1) * Math.min(ruimteY * 0.9, niveau === 1 ? 0.03 * vlak.h : ruimteY);
+    const o = { type, cx: Math.min(vlak.w - r - m, Math.max(r + m, cx)), cy: Math.min(vlak.h - r - m, Math.max(r + m, cy)),
+      r, tol: n.tol, ghost: n.ghost, niveau };
+    if (n.verbergNa) o.verbergNa = n.verbergNa;
+    if (type === 'middelpunt') o.hoek = rng.tussen(0, TAU);
+    if (type === 'punten') {
+      // Drie punten met minstens ~70 graden tussenruimte.
+      for (let poging = 0; poging < 50; poging++) {
+        const a = [rng.tussen(0, TAU), rng.tussen(0, TAU), rng.tussen(0, TAU)].sort((x, y) => x - y);
+        const gaten = [a[1] - a[0], a[2] - a[1], TAU - (a[2] - a[0])];
+        o.hoeken = a;
+        if (Math.min(...gaten) > 1.2) break;
+      }
+      o.punten = o.hoeken.map((h) => ({ x: o.cx + r * Math.cos(h), y: o.cy + r * Math.sin(h) }));
+    }
+    return o;
+  }
+
+  function stip(ctx, x, y, rad, kleur) {
+    ctx.fillStyle = kleur;
+    ctx.beginPath(); ctx.arc(x, y, rad, 0, TAU); ctx.fill();
+  }
+
+  function teken(ctx, o, vlak, info) {
+    const k = vlak.kleur;
+    ctx.save();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = k.hulp;
+    if (o.type === 'kader') {
+      ctx.strokeRect(o.cx - o.r, o.cy - o.r, 2 * o.r, 2 * o.r);
+      if (o.ghost > 0) {
+        ctx.globalAlpha = o.ghost; ctx.strokeStyle = k.hulpZacht; ctx.lineWidth = 6;
+        ctx.beginPath(); ctx.arc(o.cx, o.cy, o.r, 0, TAU); ctx.stroke();
+        ctx.globalAlpha = 1;
+      }
+      ctx.strokeStyle = k.hulp; ctx.lineWidth = 3;
+      const s = 10;
+      ctx.beginPath();
+      ctx.moveTo(o.cx - o.r - s, o.cy); ctx.lineTo(o.cx - o.r + s, o.cy);
+      ctx.moveTo(o.cx + o.r - s, o.cy); ctx.lineTo(o.cx + o.r + s, o.cy);
+      ctx.moveTo(o.cx, o.cy - o.r - s); ctx.lineTo(o.cx, o.cy - o.r + s);
+      ctx.moveTo(o.cx, o.cy + o.r - s); ctx.lineTo(o.cx, o.cy + o.r + s);
+      ctx.stroke();
+    } else if (o.type === 'middelpunt') {
+      if (!(info && info.verborgen)) {
+        ctx.setLineDash([8, 7]);
+        ctx.beginPath();
+        ctx.moveTo(o.cx, o.cy);
+        ctx.lineTo(o.cx + o.r * Math.cos(o.hoek), o.cy + o.r * Math.sin(o.hoek));
+        ctx.stroke();
+        ctx.setLineDash([]);
+        stip(ctx, o.cx + o.r * Math.cos(o.hoek), o.cy + o.r * Math.sin(o.hoek), 3.5, k.hulp);
+        stip(ctx, o.cx, o.cy, 6, k.accent);
+      }
+    } else {
+      for (const p of o.punten) stip(ctx, p.x, p.y, 7, k.accent);
+    }
+    ctx.restore();
+  }
+
+  // Kåsa-fit: kleinste kwadraten cirkel door de punten.
+  function kasaFit(pts) {
+    const n = pts.length;
+    const mx = H.gemiddelde(pts.map((p) => p.x)), my = H.gemiddelde(pts.map((p) => p.y));
+    let suu = 0, svv = 0, suv = 0, suuu = 0, svvv = 0, suuv = 0, suvv = 0;
+    for (const p of pts) {
+      const u = p.x - mx, v = p.y - my;
+      suu += u * u; svv += v * v; suv += u * v;
+      suuu += u * u * u; svvv += v * v * v; suuv += u * u * v; suvv += u * v * v;
+    }
+    const det = suu * svv - suv * suv;
+    if (!isFinite(det) || Math.abs(det) < 1e-9) return null;
+    const b1 = 0.5 * (suuu + suvv), b2 = 0.5 * (svvv + suuv);
+    const uc = (b1 * svv - b2 * suv) / det, vc = (suu * b2 - suv * b1) / det;
+    const r = Math.sqrt(uc * uc + vc * vc + (suu + svv) / n);
+    if (!isFinite(r) || r <= 0) return null;
+    return { x: mx + uc, y: my + vc, r };
+  }
+
+  // Verhouding lange/korte as (PCA) van de punten.
+  function asRatio(pts) {
+    const mx = H.gemiddelde(pts.map((p) => p.x)), my = H.gemiddelde(pts.map((p) => p.y));
+    let sxx = 0, syy = 0, sxy = 0;
+    for (const p of pts) { const dx = p.x - mx, dy = p.y - my; sxx += dx * dx; syy += dy * dy; sxy += dx * dy; }
+    const tr = sxx + syy, det = sxx * syy - sxy * sxy;
+    const d = Math.sqrt(Math.max(0, tr * tr / 4 - det));
+    const l1 = tr / 2 + d, l2 = Math.max(1e-9, tr / 2 - d);
+    return Math.sqrt(l1 / l2);
+  }
+
+  function nakijken(o, streken) {
+    const ruw = streken[streken.length - 1].punten;
+    if (ruw.length < 15 || H.lengte(ruw) < o.r * 1.5) return { ongeldig: 'Te kort: teken de hele cirkel in één streek.' };
+    const duur = ruw[ruw.length - 1].t - ruw[0].t;
+    const pts = H.herbemonsterN(ruw, 64);
+    const c = kasaFit(pts);
+    if (!c) return { ongeldig: 'Dat was geen cirkel, probeer opnieuw.' };
+    const r = c.r;
+
+    // Rondheid.
+    const e = pts.map((p) => Math.hypot(p.x - c.x, p.y - c.y) - r);
+    const rms = Math.sqrt(H.gemiddelde(e.map((v) => v * v)));
+    const R = H.lin(rms / r, 0.01, 0.12);
+
+    // Hoek-sweep rond het midden (gesigneerd) en richtingswissel.
+    const hoeken = pts.map((p) => Math.atan2(p.y - c.y, p.x - c.x));
+    const stappen = [];
+    for (let i = 1; i < hoeken.length; i++) {
+      let d = hoeken[i] - hoeken[i - 1];
+      while (d > Math.PI) d -= TAU;
+      while (d < -Math.PI) d += TAU;
+      stappen.push(d);
+    }
+    const som = stappen.reduce((s, v) => s + v, 0);
+    const sweep = Math.abs(som) * 180 / Math.PI;
+    const teken = som >= 0 ? 1 : -1;
+    const terug = stappen.filter((d) => d * teken < 0).reduce((s, d) => s + Math.abs(d), 0) * 180 / Math.PI;
+    const wissel = terug > 15;
+
+    // Sluiting.
+    const gap = H.afstand(pts[0], pts[pts.length - 1]);
+    let G = H.lin(gap, 0.05 * r, 0.25 * r);
+    if (sweep < 330) G = Math.min(G, 0.5);
+
+    // Doelmatch.
+    let fout, dx = 0, dy = 0, dr = 0;
+    if (o.type === 'punten') {
+      const afw = o.punten.map((p) => Math.abs(Math.hypot(p.x - c.x, p.y - c.y) - r));
+      fout = H.gemiddelde(afw) / r;
+      // Voor de tip: maat/positie t.o.v. de cirkel door de drie punten.
+      dx = c.x - o.cx; dy = c.y - o.cy; dr = r - o.r;
+    } else {
+      dx = c.x - o.cx; dy = c.y - o.cy; dr = r - o.r;
+      fout = Math.max(Math.abs(dr) / o.r, Math.hypot(dx, dy) / o.r);
+    }
+    const D = H.lin(fout, 0.04, o.tol);
+
+    // Vloeiendheid.
+    const sn = H.snelheden(H.herbemonster(ruw, 3));
+    const gl = [];
+    for (let i = 0; i + 3 <= sn.length; i += 1) gl.push((sn[i] + sn[i + 1] + sn[i + 2]) / 3);
+    const cv = gl.length > 3 && H.gemiddelde(gl) > 0 ? H.sd(gl) / H.gemiddelde(gl) : 0.5;
+    let V = H.lin(cv, 0.2, 0.8);
+    if (wissel) V *= 0.7;
+
+    let score = 100 * (0.40 * R + 0.20 * G + 0.25 * D + 0.15 * V);
+    let traag = 0;
+    if (o.niveau === 5 && duur > 1500) { traag = Math.min(25, (duur - 1500) / 100); score -= traag; }
+    if (gap > 0.25 * r) score = Math.min(score, 55); // duidelijk open: nooit een voldoende
+    score = Math.round(H.clamp(score, 0, 100));
+
+    const ratio = asRatio(pts);
+    const info = { ratio, gap, r, dx, dy, dr, V, wissel, traag, R, D, score, tol: o.tol };
+    return { score, tip: tip(o, info), c, r, gap, ratio, e, begin: pts[0], eind: pts[pts.length - 1], pts };
+  }
+
+  function tip(o, i) {
+    const r = i.r;
+    if (i.gap > 0.25 * r) return 'Sluit de cirkel: ga door tot voorbij je beginpunt.';
+    if (i.ratio > 1.15) return 'Je cirkel is een ei: draai je hele arm mee, niet alleen je pols.';
+    if (i.V < 0.35 || i.wissel) return 'Je haperde. Maak één rustige beweging; oefen eerst in de lucht.';
+    const lim = Math.max(0.08, i.tol * 0.45) * o.r;
+    const delen = [];
+    const maatFout = Math.abs(i.dr) > lim;
+    if (maatFout) delen.push(i.dr < 0 ? 'te klein' : 'te groot');
+    const pos = [];
+    if (Math.abs(i.dx) > lim) pos.push(i.dx < 0 ? 'links' : 'rechts');
+    if (Math.abs(i.dy) > lim) pos.push(i.dy < 0 ? 'boven' : 'onder');
+    if (delen.length || pos.length) {
+      let s = 'Iets ' + (delen[0] || 'verschoven');
+      if (pos.length) s += (delen.length ? ' en ' : ' ') + 'naar ' + pos.join('-');
+      return s.replace('verschoven naar', 'te ver naar') + '.';
+    }
+    if (i.traag > 5) return 'Te traag: maak de cirkel in minder dan 1,5 seconde.';
+    if (i.score >= 85) return 'Mooi rond en gesloten.';
+    return 'Bijna: trek rustiger en gelijkmatiger door.';
+  }
+
+  function tekenUitslag(ctx, o, streken, u, vlak) {
+    const k = vlak.kleur;
+    ctx.save();
+    ctx.setLineDash([10, 8]);
+    ctx.strokeStyle = k.goed; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.arc(o.cx, o.cy, o.r, 0, TAU); ctx.stroke();
+    ctx.setLineDash([]);
+    if (u && u.c) {
+      ctx.strokeStyle = k.tekstZacht; ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.arc(u.c.x, u.c.y, u.r, 0, TAU); ctx.stroke();
+      if (u.ratio > 1.15 && u.pts) {
+        u.pts.forEach((p, idx) => { if (Math.abs(u.e[idx]) > 0.08 * u.r) stip(ctx, p.x, p.y, 4, k.fout); });
+      }
+      if (u.gap > 0.12 * u.r) {
+        ctx.strokeStyle = k.fout; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.moveTo(u.begin.x, u.begin.y); ctx.lineTo(u.eind.x, u.eind.y); ctx.stroke();
+        stip(ctx, u.begin.x, u.begin.y, 5, k.fout);
+        stip(ctx, u.eind.x, u.eind.y, 5, k.fout);
+      }
+    }
+    ctx.restore();
+  }
+
+  Tekentrainer.registreer({
+    id: 'cirkels',
+    naam: 'Cirkels',
+    uitleg: 'Teken in één vloeiende streek een gesloten cirkel die past bij het doel.',
+    fundament: 'Eén vloeiende, gesloten boog vanuit je schouder met juiste maat en plek; de basis voor wielen, hoofden en organische vormen.',
+    meerdereStreken: false,
+    toonUitslag: 1400,
+    nieuweOpgave,
+    teken,
+    nakijken,
+    tekenUitslag,
+    scorePlek: (o) => ({ x: o.cx, y: o.cy }),
+  });
+})();
+
+</script>
+<script>
+/* oefeningen/curves.js */
+// Eén vloeiende lijn: C-, S- en golfcurves in één streek door stippen en ringen.
+(function () {
+  const H = window.Hulp;
+  const RAD = Math.PI / 180;
+
+  // Per niveau: type, aantal ringen, tolerantie r (fractie van W), gids, oriëntatie, minimumtempo.
+  const NIVEAUS = {
+    1: { type: 'C', ringen: 1, r: 0.08, gids: 'vol', draai: false },
+    2: { type: 'C', ringen: 2, r: 0.07, gids: 'uiteinden', draai: true },
+    3: { type: 'S', ringen: 2, r: 0.06, gids: 'geen', draai: true },
+    4: { type: 'S2', ringen: 3, r: 0.05, gids: 'geen', draai: true },
+    5: { type: 'golf', ringen: 4, r: 0.04, gids: 'geen', draai: true, snel: true },
+  };
+  const WENDINGEN = { C: 0, S: 1, S2: 1, golf: 2 };
+  const HOEK_A = 4;           // graden: minimale amplitude voor een tekenwisseling van de kromming
+  const TRAAG = 0.12;         // mediane snelheid in W per seconde: daaronder is het "zeer traag"
+  const TRAAG_N5 = 0.3;       // idem voor het minimumtempo van niveau 5
+
+  // ---------- opgave ----------
+  // Bogen: lijst {R, hoek} (hoek in rad, teken = draairichting). Geeft een dichte polyline in eenheidsruimte.
+  function bogen(type, rng) {
+    if (type === 'C') return [{ R: 1, hoek: rng.tussen(150, 200) * RAD }];
+    if (type === 'S') { const h = rng.tussen(85, 115) * RAD; return [{ R: 1, hoek: h }, { R: 1, hoek: -h }]; }
+    if (type === 'S2') {
+      const f = rng.kies([rng.tussen(0.5, 0.65), rng.tussen(1.5, 1.9)]);
+      return [{ R: 1, hoek: rng.tussen(100, 130) * RAD }, { R: f, hoek: -rng.tussen(90, 120) * RAD }];
+    }
+    return [
+      { R: 1, hoek: rng.tussen(80, 105) * RAD },
+      { R: rng.tussen(0.8, 1.2), hoek: -rng.tussen(150, 190) * RAD },
+      { R: rng.tussen(0.8, 1.2), hoek: rng.tussen(80, 105) * RAD },
+    ];
+  }
+
+  function bouwPolyline(segs) {
+    const pts = [{ x: 0, y: 0 }];
+    let x = 0, y = 0, th = 0;
+    const stap = 0.01;
+    for (const s of segs) {
+      const L = s.R * Math.abs(s.hoek), n = Math.max(2, Math.ceil(L / stap));
+      const dth = s.hoek / n, ds = L / n;
+      for (let i = 0; i < n; i++) {
+        const mid = th + dth / 2;
+        x += Math.cos(mid) * ds; y += Math.sin(mid) * ds; th += dth;
+        pts.push({ x, y });
+      }
+    }
+    return pts;
+  }
+
+  function nieuweOpgave(niveau, rng, vlak) {
+    const n = NIVEAUS[niveau];
+    const W = Math.min(vlak.w, vlak.h);
+    let pts = bouwPolyline(bogen(n.type, rng));
+    // Oriëntatie: niveau 1 vast (alleen gespiegeld), daarna willekeurig draaien.
+    const spiegel = rng() < 0.5 ? -1 : 1;
+    const t = n.draai ? rng.tussen(0, 2 * Math.PI) : 0;
+    const c = Math.cos(t), s = Math.sin(t);
+    pts = pts.map((p) => { const x = p.x * spiegel; return { x: x * c - p.y * s, y: x * s + p.y * c }; });
+    // Passen in het vlak.
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    for (const p of pts) { x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x); y0 = Math.min(y0, p.y); y1 = Math.max(y1, p.y); }
+    const marge = n.r * W + 0.04 * W;
+    const k = Math.min((vlak.w - 2 * marge) / (x1 - x0 || 1), (vlak.h - 2 * marge) / (y1 - y0 || 1));
+    const ox = vlak.w / 2 - k * (x0 + x1) / 2, oy = vlak.h / 2 - k * (y0 + y1) / 2;
+    const ideaal = pts.map((p) => ({ x: ox + k * p.x, y: oy + k * p.y }));
+    // Tangent, normaal en gesigneerde kromming (+ = middelpunt aan de kant van de normaal).
+    const m = ideaal.length, vk = 3;
+    for (let i = 0; i < m; i++) {
+      const a = ideaal[Math.max(0, i - 1)], b = ideaal[Math.min(m - 1, i + 1)];
+      const l = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+      ideaal[i].tx = (b.x - a.x) / l; ideaal[i].ty = (b.y - a.y) / l;
+    }
+    for (let i = 0; i < m; i++) {
+      const a = ideaal[Math.max(0, i - vk)], b = ideaal[Math.min(m - 1, i + vk)];
+      let d = Math.atan2(b.ty, b.tx) - Math.atan2(a.ty, a.tx);
+      d = Math.atan2(Math.sin(d), Math.cos(d));
+      const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+      ideaal[i].k = d / len;
+    }
+    let lengte = 0;
+    const cum = [0];
+    for (let i = 1; i < m; i++) { lengte += H.afstand(ideaal[i - 1], ideaal[i]); cum.push(lengte); }
+    const ringen = [];
+    for (let j = 1; j <= n.ringen; j++) {
+      const doel = lengte * j / (n.ringen + 1);
+      let i = 0; while (i < m - 1 && cum[i] < doel) i++;
+      ringen.push({ x: ideaal[i].x, y: ideaal[i].y, i });
+    }
+    const opgave = {
+      niveau, type: n.type, wendingen: WENDINGEN[n.type], r: n.r * W, W,
+      gids: n.gids, snel: !!n.snel, ideaal, cum, lengte, ringen,
+      start: { x: ideaal[0].x, y: ideaal[0].y }, eind: { x: ideaal[m - 1].x, y: ideaal[m - 1].y },
+    };
+    opgave.plek = legePlek(opgave, vlak);
+    return opgave;
+  }
+
+  // Punt in het vlak met de grootste afstand tot de curve (voor de score).
+  function legePlek(o, vlak) {
+    const mx = vlak.w * 0.3, my = Math.min(vlak.h * 0.18, 70);
+    let beste = { x: vlak.w / 2, y: vlak.h / 2 }, bd = -1;
+    const stap = Math.max(8, o.W / 40);
+    for (let y = my; y <= vlak.h - my; y += stap) {
+      for (let x = mx; x <= vlak.w - mx; x += stap) {
+        const d = H.polyAfstand({ x, y }, o.ideaal);
+        if (d > bd) { bd = d; beste = { x, y }; }
+      }
+    }
+    return beste;
+  }
+
+  // ---------- tekenen ----------
+  function pad(ctx, pts, van, tot) {
+    ctx.beginPath();
+    ctx.moveTo(pts[van].x, pts[van].y);
+    for (let i = van + 1; i <= tot; i++) ctx.lineTo(pts[i].x, pts[i].y);
+    ctx.stroke();
+  }
+
+  function teken(ctx, o, vlak) {
+    const kl = vlak.kleur, m = o.ideaal.length;
+    ctx.save();
+    if (o.gids !== 'geen') {
+      ctx.strokeStyle = kl.hulp; ctx.lineWidth = 2; ctx.setLineDash([4, 9]); ctx.lineCap = 'round';
+      if (o.gids === 'vol') pad(ctx, o.ideaal, 0, m - 1);
+      else {
+        let a = 0; while (a < m - 1 && o.cum[a] < o.lengte * 0.14) a++;
+        let b = m - 1; while (b > 0 && o.cum[b] > o.lengte * 0.86) b--;
+        pad(ctx, o.ideaal, 0, a); pad(ctx, o.ideaal, b, m - 1);
+      }
+      ctx.setLineDash([]);
+    }
+    ctx.strokeStyle = kl.hulp; ctx.lineWidth = 2;
+    for (const r of o.ringen) { ctx.beginPath(); ctx.arc(r.x, r.y, o.r, 0, Math.PI * 2); ctx.stroke(); }
+    const dot = Math.max(6, o.r * 0.5);
+    ctx.fillStyle = kl.accent;
+    ctx.beginPath(); ctx.arc(o.start.x, o.start.y, dot, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = kl.accent; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(o.start.x, o.start.y, o.r, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = kl.tekst;
+    ctx.beginPath(); ctx.arc(o.eind.x, o.eind.y, dot, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = kl.tekst; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(o.eind.x, o.eind.y, o.r, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+  }
+
+  // ---------- nakijken ----------
+  const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+
+  // Herbemonsteren op ds en 3-punts gemiddelde (begin/eind blijven staan; tijd blijft behouden).
+  function opschonen(ruw, ds) {
+    const r = H.herbemonster(ruw, ds);
+    const uit = r.map((p, i) => {
+      if (i === 0 || i === r.length - 1) return { x: p.x, y: p.y, t: p.t };
+      return { x: (r[i - 1].x + p.x + r[i + 1].x) / 3, y: (r[i - 1].y + p.y + r[i + 1].y) / 3, t: p.t };
+    });
+    return uit;
+  }
+
+  function dichtstbij(p, ideaal) {
+    let bi = 0, bd = Infinity;
+    for (let i = 0; i < ideaal.length; i++) {
+      const d = (p.x - ideaal[i].x) ** 2 + (p.y - ideaal[i].y) ** 2;
+      if (d < bd) { bd = d; bi = i; }
+    }
+    return { i: bi, d: Math.sqrt(bd) };
+  }
+
+  function nakijken(o, streken) {
+    const ruw = streken[streken.length - 1].punten;
+    if (ruw.length < 12 || H.lengte(ruw) < 0.5 * o.lengte) return { ongeldig: 'Te kort: teken de hele lijn in één streek.' };
+    const W = o.W, ds = 0.01 * W, r = o.r;
+    const P = opschonen(ruw, ds);
+    const n = P.length;
+    if (n < 12) return { ongeldig: 'Te kort: teken de hele lijn in één streek.' };
+
+    // --- Doorgang ---
+    const si = (d) => H.clamp(1 - (d - 0.5 * r) / (1.5 * r), 0, 1);
+    const dStart = H.afstand(P[0], o.start), dEind = H.afstand(P[n - 1], o.eind);
+    const ringD = o.ringen.map((g) => H.polyAfstand(g, P));
+    const sRing = ringD.map(si);
+    const sStart = dStart <= 1.5 * r ? si(dStart) : 0;
+    const sEind = dEind <= 1.5 * r ? si(dEind) : 0;
+    const doorgang = 100 * H.gemiddelde([sStart, ...sRing, sEind]);
+    const gemist = o.ringen.filter((g, k) => sRing[k] < 0.5);
+
+    // --- Hoeken en kromming ---
+    const phi = [];
+    for (let j = 0; j < n - 1; j++) phi.push(Math.atan2(P[j + 1].y - P[j].y, P[j + 1].x - P[j].x));
+    const theta = [0];                       // theta[j] = draaihoek in vertex j (j=1..n-2), rad
+    for (let j = 1; j < n - 1; j++) theta.push(wrap(phi[j] - phi[j - 1]));
+    theta.push(0);
+    const kappa = theta.map((t) => t / ds);
+    const absK = theta.slice(1, n - 1).map((t) => Math.abs(t / ds));
+    const medK = H.mediaan(absK);
+    const flag = new Array(n).fill(false);
+    for (let j = 1; j < n - 1; j++) {
+      const t = Math.abs(theta[j]) / RAD;
+      const k = Math.abs(kappa[j]);
+      if (t > 30 || (k > 3 * medK && t > 20)) flag[j] = true;
+      if (j < n - 3) {
+        const s3 = Math.abs(theta[j] + theta[j + 1] + theta[j + 2]) / RAD;
+        if (s3 > 55) { flag[j] = flag[j + 1] = flag[j + 2] = true; }
+      }
+    }
+    const hoekjes = [];                      // clusters van aaneengesloten (gap ≤ 1) vlaggen
+    for (let j = 1; j < n - 1; j++) {
+      if (!flag[j]) continue;
+      let e = j;
+      while (e + 2 < n - 1 && (flag[e + 1] || flag[e + 2])) e++;
+      let mx = j; for (let q = j; q <= e; q++) if (Math.abs(theta[q]) > Math.abs(theta[mx])) mx = q;
+      hoekjes.push({ x: P[mx].x, y: P[mx].y });
+      j = e;
+    }
+
+    // --- Tekenwisselingen van de kromming (hysterese op cumulatieve hoek) ---
+    const cumA = [];
+    { let c = 0; for (let j = 1; j < n - 1; j++) { c += theta[j] / RAD; cumA.push(c); } }
+    const glad = cumA.map((_, j) => {            // 5-punts gemiddelde tegen meetruis
+      let s = 0, k = 0;
+      for (let q = Math.max(0, j - 2); q <= Math.min(cumA.length - 1, j + 2); q++) { s += cumA[q]; k++; }
+      return s / k;
+    });
+    let dir = 0, ext = 0, mn = 0, mxv = 0, wissels = 0;
+    for (const cum of glad) {
+      if (dir === 0) {
+        mn = Math.min(mn, cum); mxv = Math.max(mxv, cum);
+        if (cum - mn >= HOEK_A) { dir = 1; ext = cum; } else if (mxv - cum >= HOEK_A) { dir = -1; ext = cum; }
+      } else if (dir === 1) {
+        ext = Math.max(ext, cum);
+        if (ext - cum >= HOEK_A) { dir = -1; ext = cum; wissels++; }
+      } else {
+        ext = Math.min(ext, cum);
+        if (cum - ext >= HOEK_A) { dir = 1; ext = cum; wissels++; }
+      }
+    }
+    const extra = Math.max(0, wissels - o.wendingen);
+    const verkeerdeWendingen = wissels !== o.wendingen;
+
+    // --- Ruwheid ---
+    const dK = [];
+    for (let j = 2; j < n - 1; j++) dK.push(kappa[j] - kappa[j - 1]);
+    const gemK = H.gemiddelde(absK);
+    const ruwheid = gemK > 0 ? H.sd(dK) / gemK : 0;
+    const ruwPen = 20 * H.clamp((ruwheid - 1) / 2, 0, 1);
+
+    let vloeiend = 100 - 10 * hoekjes.length - 8 * extra - ruwPen;
+    vloeiend = H.clamp(vloeiend, 0, 100);
+
+    // --- Tempo ---
+    // Groepen segmenten van ≥ 6 ms zodat gelijke tijdstempels geen oneindige snelheid geven.
+    const groepen = [];
+    let gd = 0, gt = 0, g0 = 0, afgelegd = 0;
+    const totaal = H.lengte(P) || 1;
+    for (let j = 0; j < n - 1; j++) {
+      const d = H.afstand(P[j], P[j + 1]);
+      const dt = Math.max(0, P[j + 1].t - P[j].t);
+      gd += d; gt += dt;
+      if (gt >= 6 || j === n - 2) {
+        if (gt > 0) groepen.push({ v: gd / gt, dt: gt, f: (afgelegd + gd / 2) / totaal, j0: g0, j1: j });
+        afgelegd += gd; gd = 0; gt = 0; g0 = j + 1;
+      }
+    }
+    let tempo = 70, haperingen = [], cv = 0, vMed = 0, traag = false;
+    if (groepen.length >= 4) {
+      vMed = H.mediaan(groepen.map((g) => g.v));
+      const mid = groepen.filter((g) => g.f >= 0.1 && g.f <= 0.9);
+      let run = [];
+      const sluit = () => {
+        if (run.length && H.gemiddelde([run.reduce((s, g) => s + g.dt, 0)]) >= 80) {
+          const g = run[Math.floor(run.length / 2)];
+          haperingen.push({ x: P[g.j0].x, y: P[g.j0].y });
+        }
+        run = [];
+      };
+      for (const g of mid) { if (g.v < 0.2 * vMed) run.push(g); else sluit(); }
+      sluit();
+      const vs = mid.map((g) => g.v);
+      const gv = H.gemiddelde(vs);
+      cv = gv > 0 ? H.sd(vs) / gv : 0;
+      tempo = 100 - 25 * haperingen.length - 25 * H.clamp((cv - 0.5) / 0.5, 0, 1);
+      const grens = (o.snel ? TRAAG_N5 : TRAAG) * W / 1000;
+      traag = vMed < grens;
+      if (traag) tempo = Math.min(tempo, 60);
+      tempo = H.clamp(tempo, 0, 100);
+    }
+
+    // --- Bocht afgesneden (afwijking naar de binnenkant van de bocht) ---
+    const afgesneden = [];
+    let reeks = [];
+    const kMin = 0.4 / o.lengte;             // negeer bijna rechte stukken (kromming in 1/px)
+    for (let j = 0; j < n; j++) {
+      const q = dichtstbij(P[j], o.ideaal), id = o.ideaal[q.i];
+      let binnen = 0;
+      if (Math.abs(id.k) > kMin) {
+        const nx = -id.ty, ny = id.tx, sg = Math.sign(id.k);
+        binnen = ((P[j].x - id.x) * nx + (P[j].y - id.y) * ny) * sg;
+      }
+      if (binnen > 0.5 * r) reeks.push(P[j]);
+      else { if (reeks.length >= 3) afgesneden.push(reeks[Math.floor(reeks.length / 2)]); reeks = []; }
+    }
+    if (reeks.length >= 3) afgesneden.push(reeks[Math.floor(reeks.length / 2)]);
+
+    let score = 0.35 * doorgang + 0.40 * vloeiend + 0.25 * tempo;
+    if (verkeerdeWendingen) score = Math.min(score, 60);
+    score = Math.round(H.clamp(score, 0, 100));
+
+    // --- Tip: de oorzaak met de grootste puntenverlies ---
+    const nabijRing = (p) => [o.start, o.eind, ...o.ringen].some((g) => H.afstand(p, g) < 2.5 * r);
+    const knikRing = hoekjes.filter(nabijRing).length;
+    const kandidaten = [];
+    const grensV = (o.snel ? TRAAG_N5 : TRAAG) * W / 1000;
+    const trillerig = (ruwPen >= 6 || hoekjes.length >= 3) && vMed > 0 && vMed < Math.max(2 * grensV, 0.4 * W / 1000);
+    if (hoekjes.length && !trillerig) {
+      kandidaten.push(knikRing
+        ? [20 * knikRing + 10, 'Je knikt bij de stip. Kijk al naar de volgende stip en haal de lijn in één beweging door.']
+        : [20 * hoekjes.length + 10, 'Je lijn heeft een knik. Trek de bocht in één vloeiende beweging.']);
+    }
+    if (haperingen.length) kandidaten.push([25 * haperingen.length + 5, 'Je stokt halverwege. Trek sneller, vanuit je schouder.']);
+    if (trillerig) kandidaten.push([100, 'Trillerige lijn. Teken sneller; een snelle lijn wordt gladder.']);
+    if (traag) kandidaten.push([40, 'Je tekent te langzaam. Trek de lijn sneller, vanuit je schouder.']);
+    if (afgesneden.length) kandidaten.push([30, 'Je snijdt de bocht af. Maak hem ruimer.']);
+    if (dStart > 1.5 * r || dEind > 1.5 * r) kandidaten.push([60, 'Begin op de gekleurde stip en eindig op de laatste stip.']);
+    else if (gemist.length) kandidaten.push([(100 - doorgang) * 1.2, 'Je mist een ring. Laat de lijn door het midden van de ringen lopen.']);
+    if (verkeerdeWendingen) {
+      kandidaten.push([hoekjes.length ? 15 : wissels < o.wendingen ? 45 : 35,
+        o.wendingen === 0 ? 'Dit is één C-bocht: wissel niet van richting.'
+          : wissels < o.wendingen ? 'Je lijn mist een wending. Buig na het midden de andere kant op.'
+            : 'Te veel wendingen. Houd de bochten ruim en rustig.']);
+    }
+    let tip;
+    if (kandidaten.length) { kandidaten.sort((a, b) => b[0] - a[0]); tip = kandidaten[0][1]; }
+    else tip = score >= 85 ? 'Mooie, vloeiende lijn.' : 'Trek gelijkmatiger door, vanuit je schouder.';
+
+    return {
+      score, tip, hoekjes: hoekjes.length, ruwPen, doorgang, vloeiend, tempo, wissels, ruwheid, cv, vMed,
+      markers: { knikken: hoekjes, haperingen, afgesneden, gemist },
+    };
+  }
+
+  function tekenUitslag(ctx, o, streken, u, vlak) {
+    const kl = vlak.kleur;
+    ctx.save();
+    ctx.setLineDash([10, 8]); ctx.strokeStyle = kl.goed; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+    pad(ctx, o.ideaal, 0, o.ideaal.length - 1);
+    ctx.setLineDash([]);
+    ctx.strokeStyle = kl.fout; ctx.lineWidth = 2.5;
+    for (const g of u.markers.gemist) { ctx.beginPath(); ctx.arc(g.x, g.y, o.r, 0, Math.PI * 2); ctx.stroke(); }
+    ctx.fillStyle = kl.fout;
+    const m = u.markers;
+    for (const p of [...m.knikken, ...m.haperingen, ...m.afgesneden]) {
+      ctx.beginPath(); ctx.arc(p.x, p.y, 5, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  Tekentrainer.registreer({
+    id: 'curves',
+    naam: 'Eén vloeiende lijn',
+    uitleg: 'Teken in één vloeiende streek van de startstip door alle ringen naar de eindstip.',
+    fundament: 'Zelfverzekerde C- en S-curves vanuit schouder en elleboog; de basis voor lineart en schetsen.',
+    meerdereStreken: false,
+    toonUitslag: 1500,
+    nieuweOpgave,
+    teken,
+    nakijken,
+    tekenUitslag,
+    scorePlek: (o) => o.plek,
+  });
+})();
+
+</script>
+<script>
+/* oefeningen/slingerlijn.js */
+// De Slingerlijn: één vloeiende streek met constant tempo langs een slingerende contour.
+(function () {
+  const H = window.Hulp;
+
+  // T = tolerantie (mm), tempo = streefsnelheid van de stip (mm/s), bereik = goed tempo (mm/s).
+  const NIVEAUS = {
+    1: { T: 6.0, tempo: 45, bereik: [30, 80], stip: true, gew: [0.45, 0.20, 0.15, 0.10, 0.10] },
+    2: { T: 5.0, tempo: 60, bereik: [40, 100], stip: true, gew: [0.45, 0.20, 0.15, 0.10, 0.10] },
+    3: { T: 4.0, tempo: 0, bereik: [40, 120], stip: false, gew: [0.45, 0.20, 0.15, 0.10, 0.10] },
+    4: { T: 3.0, tempo: 0, bereik: [35, 110], stip: false, gew: [0.45, 0.20, 0.15, 0.10, 0.10] },
+    5: { T: 2.5, tempo: 0, bereik: [35, 110], stip: false, gew: [0.40, 0.17, 0.15, 0.10, 0.18] },
+  };
+
+  // ---------- meetkunde ----------
+  function chaikin(pts, n) {
+    for (let k = 0; k < n; k++) {
+      const u = [pts[0]];
+      for (let i = 0; i < pts.length - 1; i++) {
+        const a = pts[i], b = pts[i + 1];
+        u.push({ x: 0.75 * a.x + 0.25 * b.x, y: 0.75 * a.y + 0.25 * b.y });
+        u.push({ x: 0.25 * a.x + 0.75 * b.x, y: 0.25 * a.y + 0.75 * b.y });
+      }
+      u.push(pts[pts.length - 1]);
+      pts = u;
+    }
+    return pts;
+  }
+
+  // Ruwe vorm (eenheden willekeurig) per niveau.
+  function ruweVorm(niveau, rng) {
+    const j = (a) => rng.tussen(-a, a);
+    if (niveau === 1) {
+      return chaikin([{ x: 0, y: 0.7 + j(0.08) }, { x: 1.0 + j(0.1), y: 0.1 + j(0.08) }, { x: 2.0, y: 0.6 + j(0.08) }], 5)
+        .map((p) => ({ x: p.x * 1.0, y: p.y }));
+    }
+    if (niveau === 2) {
+      return chaikin([{ x: 0, y: 0.9 + j(0.1) }, { x: 0.7, y: 0.1 + j(0.1) }, { x: 1.3, y: 0.9 + j(0.1) }, { x: 2.0, y: 0.1 + j(0.1) }], 5);
+    }
+    if (niveau === 3) {
+      const n = rng.kies([5, 6]), w = 2.0, v = [];
+      for (let i = 0; i < n; i++) {
+        v.push({ x: w * i / (n - 1) + (i && i < n - 1 ? j(0.05) : 0), y: (i % 2 ? 0.1 : 0.9) + j(0.12) });
+      }
+      return chaikin(v, 5);
+    }
+    if (niveau === 4) {
+      if (rng() < 0.5) { // spiraal naar binnen
+        const draaien = rng.tussen(1.35, 1.6), th = draaien * 2 * Math.PI, r = [];
+        for (let k = 0; k <= 400; k++) {
+          const a = th * k / 400, rr = 1 - 0.78 * (a / th);
+          r.push({ x: rr * Math.cos(a), y: rr * Math.sin(a) });
+        }
+        return r;
+      }
+      const a = 1, b = rng.tussen(2.1, 2.6), tm = Math.PI * 1.1, r = []; // lus (trochoïde)
+      for (let k = 0; k <= 400; k++) {
+        const t = -tm + 2 * tm * k / 400;
+        r.push({ x: a * t - b * Math.sin(t), y: -b * Math.cos(t) });
+      }
+      return r;
+    }
+    // niveau 5: scherpe bochten, wisselende kromming
+    const n = rng.kies([7, 8]), v = [];
+    let x = 0;
+    for (let i = 0; i < n; i++) {
+      v.push({ x, y: i % 2 ? 0.08 + rng.tussen(0, 0.3) : 0.92 - rng.tussen(0, 0.3) });
+      x += rng.tussen(0.2, 0.42);
+    }
+    return chaikin(v, 2);
+  }
+
+  // Zet een polylijn om naar punten op gelijke afstand (px).
+  function gelijkeStap(pts, stap) { return H.herbemonster(pts.map((p) => ({ x: p.x, y: p.y, p: 0, t: 0 })), stap).map((p) => ({ x: p.x, y: p.y })); }
+
+  function nieuweOpgave(niveau, rng, vlak) {
+    const n = NIVEAUS[niveau];
+    const mm = vlak.pxPerMm;
+    const k = H.clamp(Math.min(vlak.w, vlak.h) / (mm * 100), 0.55, 1);
+    const Tpx = n.T * mm * k;
+    let ruw = ruweVorm(niveau, rng);
+    // Passend maken in het vlak (uniform schalen, midden).
+    const marge = Math.max(Tpx * 2, 30);
+    const bx = [marge + 8, vlak.w - marge - 8], by = [Math.max(marge, 34) + 20, vlak.h - Math.max(marge, 34)];
+    const minx = Math.min(...ruw.map((p) => p.x)), maxx = Math.max(...ruw.map((p) => p.x));
+    const miny = Math.min(...ruw.map((p) => p.y)), maxy = Math.max(...ruw.map((p) => p.y));
+    const s = Math.min((bx[1] - bx[0]) / Math.max(1e-6, maxx - minx), (by[1] - by[0]) / Math.max(1e-6, maxy - miny));
+    const ox = (bx[0] + bx[1]) / 2 - s * (minx + maxx) / 2, oy = (by[0] + by[1]) / 2 - s * (miny + maxy) / 2;
+    const spiegelX = rng() < 0.5, spiegelY = rng() < 0.5;
+    ruw = ruw.map((p) => {
+      let x = ox + s * p.x, y = oy + s * p.y;
+      if (spiegelX) x = vlak.w - x;
+      if (spiegelY) y = vlak.h - y;
+      return { x, y };
+    });
+    const pts = gelijkeStap(ruw, mm); // 1 mm
+    const N = pts.length;
+    const tang = [], kr = [];
+    const hoek = (a, b) => Math.atan2(b.y - a.y, b.x - a.x);
+    for (let i = 0; i < N; i++) {
+      const a = pts[Math.max(0, i - 1)], b = pts[Math.min(N - 1, i + 1)];
+      const d = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+      tang.push({ x: (b.x - a.x) / d, y: (b.y - a.y) / d });
+      const i0 = Math.max(0, i - 4), i1 = Math.min(N - 1, i + 4);
+      if (i1 - i0 < 3 || i === i0 || i === i1) { kr.push(0); continue; }
+      let dh = hoek(pts[i], pts[i1]) - hoek(pts[i0], pts[i]);
+      while (dh > Math.PI) dh -= 2 * Math.PI;
+      while (dh < -Math.PI) dh += 2 * Math.PI;
+      kr.push(dh / (i1 - i0));
+    }
+    const o = {
+      niveau, T: n.T, Tpx, k, pts, tang, kr, gew: n.gew, bereik: n.bereik,
+      start: pts[0], eind: pts[N - 1], lengteMm: N - 1,
+      tempo: n.tempo, animeer: n.stip, stip: n.stip,
+    };
+    o.plek = vindPlek(o, vlak);
+    return o;
+  }
+
+  // Lege plek in het vlak, ver van de lijn, voor de score.
+  function vindPlek(o, vlak) {
+    let beste = { x: vlak.w / 2, y: vlak.h / 2 }, bw = -Infinity;
+    const stap = Math.max(1, Math.floor(o.pts.length / 300));
+    const sub = o.pts.filter((p, i) => i % stap === 0);
+    for (let i = 0; i <= 20; i++) {
+      for (let j = 0; j <= 12; j++) {
+        const x = vlak.w * (0.25 + 0.5 * i / 20), y = vlak.h * (0.2 + 0.6 * j / 12);
+        let m = Infinity;
+        for (const p of sub) m = Math.min(m, Math.hypot(p.x - x, p.y - y));
+        const w = Math.min(m, 140) - 0.05 * Math.hypot(x - vlak.w / 2, y - vlak.h / 2);
+        if (w > bw) { bw = w; beste = { x, y }; }
+      }
+    }
+    return beste;
+  }
+
+  function teken(ctx, o, vlak, info) {
+    const c = vlak.kleur, P = o.pts;
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(P[0].x, P[0].y);
+    for (let i = 1; i < P.length; i++) ctx.lineTo(P[i].x, P[i].y);
+    ctx.strokeStyle = c.hulpZacht;
+    ctx.lineWidth = 2 * o.Tpx;
+    ctx.stroke();
+    ctx.strokeStyle = c.hulp;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    // eindvlag
+    const e = o.eind;
+    ctx.strokeStyle = c.hulp;
+    ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(e.x, e.y); ctx.lineTo(e.x, e.y - 28); ctx.stroke();
+    ctx.fillStyle = c.accent;
+    ctx.beginPath(); ctx.moveTo(e.x, e.y - 28); ctx.lineTo(e.x + 18, e.y - 21); ctx.lineTo(e.x, e.y - 14); ctx.closePath(); ctx.fill();
+    // startstip
+    ctx.fillStyle = c.accent;
+    ctx.beginPath(); ctx.arc(o.start.x, o.start.y, 8, 0, Math.PI * 2); ctx.fill();
+    // meelopende tempo-stip (lus als voorbeeldtempo)
+    if (o.stip && !(info && info.verborgen)) {
+      const L = P.length - 1;
+      const s = (((info && info.nu) || 0) / 1000 * o.tempo) % (L + 0.9 * o.tempo); // 1 punt = 1 mm
+      const idx = H.clamp(Math.floor(s), 0, L);
+      ctx.fillStyle = c.accent;
+      ctx.strokeStyle = c.hulp;
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(P[idx].x, P[idx].y, 5.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // ---------- nakijken ----------
+  function gladMaken(r) {
+    const n = r.length, s = [];
+    for (let i = 0; i < n; i++) {
+      const h = Math.min(2, i, n - 1 - i);
+      let x = 0, y = 0;
+      for (let j = i - h; j <= i + h; j++) { x += r[j].x; y += r[j].y; }
+      s.push({ x: x / (2 * h + 1), y: y / (2 * h + 1), p: r[i].p, t: r[i].t });
+    }
+    return s;
+  }
+
+  function nakijken(o, streken, vlak) {
+    const mm = vlak.pxPerMm, T = o.Tpx, C = o.pts, NC = C.length;
+    const ruwP = streken[streken.length - 1].punten;
+    if (ruwP.length < 8 || H.lengte(ruwP) < o.lengteMm * mm * 0.4) return { ongeldig: 'Te kort: trek in één streek van de stip naar de vlag.' };
+    const r = H.herbemonster(ruwP, mm);
+    const n = r.length;
+    const dur = r[n - 1].t - r[0].t;
+    if (n < 8 || !(dur > 150)) return { ongeldig: 'Te kort of te snel: probeer opnieuw.' };
+    const sm = gladMaken(r);
+
+    // snelheid (mm/s) per punt op de gladde lijn, over venster van +-2
+    const v = [];
+    for (let i = 0; i < n; i++) {
+      const a = Math.max(0, i - 2), b = Math.min(n - 1, i + 2);
+      const dt = sm[b].t - sm[a].t;
+      v.push(dt > 0 ? H.afstand(sm[a], sm[b]) / mm / (dt / 1000) : 0);
+    }
+    const w = []; // tijdsgewicht per punt (ms)
+    for (let i = 0; i < n; i++) w.push((sm[Math.min(n - 1, i + 1)].t - sm[Math.max(0, i - 1)].t) / 2);
+    const t0 = sm[0].t, t1 = sm[n - 1].t;
+    const kern = []; // indices in de middelste 80% van de tijd
+    for (let i = 0; i < n; i++) if (sm[i].t >= t0 + 0.1 * dur && sm[i].t <= t1 - 0.1 * dur) kern.push(i);
+
+    // afstand tot contour, gesigneerd + richting
+    const af = [], dev = [], inw = [], terug = [], dichtbij = new Array(NC).fill(false);
+    let tegen = 0, stappen = 0;
+    for (let i = 0; i < n; i++) {
+      let m = Infinity, mj = 0;
+      for (let j = 0; j < NC; j++) {
+        const d = Math.hypot(C[j].x - sm[i].x, C[j].y - sm[i].y);
+        if (d < m) { m = d; mj = j; }
+      }
+      af.push(m);
+      const nx = -o.tang[mj].y, ny = o.tang[mj].x;
+      const d = (sm[i].x - C[mj].x) * nx + (sm[i].y - C[mj].y) * ny;
+      dev.push(d);
+      const kk = o.kr[mj];
+      inw.push(Math.abs(kk) > 0.008 ? d * Math.sign(kk) : null);
+      if (i > 0 && H.afstand(sm[i], sm[i - 1]) > 0.3 * mm) {
+        stappen++;
+        const dx = sm[i].x - sm[i - 1].x, dy = sm[i].y - sm[i - 1].y;
+        if (dx * o.tang[mj].x + dy * o.tang[mj].y < 0) tegen++;
+      }
+    }
+    // dekking: contourpunten met een streekpunt binnen 1.5T
+    let gedekt = 0;
+    for (let j = 0; j < NC; j++) {
+      let m = Infinity;
+      for (let i = 0; i < n; i += 1) { const d = Math.hypot(C[j].x - sm[i].x, C[j].y - sm[i].y); if (d < m) m = d; if (m <= 1.5 * T) break; }
+      if (m <= 1.5 * T) gedekt++;
+    }
+    const dekking = gedekt / NC;
+    const gem = H.gemiddelde(af) / T;
+    const sorted = af.slice().sort((a, b) => a - b);
+    const p90 = sorted[Math.min(n - 1, Math.floor(0.9 * n))] / T;
+    let A = 100 * (H.lin(gem, 0.3, 1.5) + H.lin(p90, 0.6, 2)) / 2;
+    if (dekking < 0.9) A = Math.min(A, 60);
+    const startFout = H.afstand(sm[0], o.start) > 2 * T;
+    const eindFout = H.afstand(sm[n - 1], o.eind) > 2 * T;
+    const pen = (startFout || eindFout) ? 10 : 0;
+
+    // bibber
+    let ss = 0;
+    for (let i = 0; i < n; i++) ss += ((r[i].x - sm[i].x) ** 2 + (r[i].y - sm[i].y) ** 2);
+    const rms = Math.sqrt(ss / n) / mm;
+    const B = 100 * H.lin(rms, 0.15, 0.6);
+
+    // stoppen
+    const med = H.mediaan(kern.map((i) => v[i]));
+    let slow = 0, tot = 0;
+    const stops = [];
+    let run = null;
+    for (const i of kern) {
+      tot += w[i];
+      if (v[i] < 0.15 * med) {
+        slow += w[i];
+        if (run && run.last === i - 1) { run.last = i; run.ms += w[i]; } else { run = { first: i, last: i, ms: w[i] }; stops.push(run); }
+      }
+    }
+    const stopFrac = tot > 0 ? slow / tot : 0;
+    const S = 100 * H.lin(stopFrac, 0, 0.10);
+
+    // tempo
+    let dist = 0;
+    for (let a = 1; a < kern.length; a++) dist += H.afstand(sm[kern[a]], sm[kern[a - 1]]);
+    const kernTijd = kern.length > 1 ? (sm[kern[kern.length - 1]].t - sm[kern[0]].t) / 1000 : 0;
+    const vGem = kernTijd > 0 ? dist / mm / kernTijd : 0;
+    const [lo, hi] = o.bereik;
+    const bereikS = vGem >= lo && vGem <= hi ? 1 : vGem < lo ? H.lin(vGem, lo, lo / 2) : H.lin(vGem, hi, hi * 1.6);
+    const vk = kern.map((i) => v[i]);
+    const cvV = H.gemiddelde(vk) > 0 ? H.sd(vk) / H.gemiddelde(vk) : 1;
+    const Tm = 100 * (bereikS + H.lin(cvV, 0.25, 0.6)) / 2;
+
+    // druk
+    const p = r.map((q) => q.p);
+    const lo5 = Math.floor(n * 0.1), pm = p.slice(lo5, n - lo5);
+    const mono = Math.max(...p) - Math.min(...p) < 1e-3;
+    const pg = H.gemiddelde(pm);
+    const cvP = pg > 0 ? H.sd(pm) / pg : 0;
+    const D = mono ? 100 : 100 * H.lin(cvP, 0.15, 0.5);
+
+    // kriebel
+    const pad = H.lengte(sm) / mm;
+    const kriebel = pad / o.lengteMm > 1.25 || (stappen > 0 && tegen / stappen > 0.05);
+
+    const g = o.gew;
+    let score = g[0] * A + g[1] * B + g[2] * S + g[3] * Tm + g[4] * D - pen - (kriebel ? 15 : 0);
+    score = Math.round(H.clamp(score, 0, 100));
+
+    // bochten afgesneden?
+    const iw = inw.filter((x) => x !== null);
+    const snijdt = iw.length > 20 && H.gemiddelde(iw) > 0.35 * T && iw.filter((x) => x > 0.3 * T).length / iw.length > 0.5;
+
+    let tip;
+    if (kriebel) tip = 'Trek één lijn zonder te corrigeren.';
+    else if (stopFrac > 0.05) tip = 'Je stopt halverwege, houd je tempo vast tot de vlag.';
+    else if (B < 60 && vGem < lo) tip = 'Te voorzichtig. Trek sneller en gebruik je arm.';
+    else if (vGem > hi && A < 70) tip = 'Te snel. Zoek een rustiger ritme.';
+    else if (snijdt && A < 90) tip = 'Je snijdt de bochten af, kijk vooruit langs de lijn.';
+    else if (dekking < 0.9 || startFout || eindFout) tip = 'Begin bij de stip en trek door tot de vlag.';
+    else if (A < 75) tip = 'Blijf in de band. Kijk vooruit langs de lijn.';
+    else if (B < 60) tip = vGem < lo ? 'Te voorzichtig. Trek sneller en gebruik je arm.' : 'Lijn trilt. Trek ontspannen vanuit je schouder.';
+    else if (Tm < 60) tip = vGem < lo ? 'Te traag. Trek met meer vaart.' : vGem > hi ? 'Te snel. Zoek een rustiger ritme.' : 'Houd je snelheid gelijk van begin tot eind.';
+    else if (D < 60 && !mono) tip = 'Houd je pendruk gelijkmatig.';
+    else tip = score >= 85 ? 'Mooi vloeiend en gelijkmatig.' : 'Goed bezig. Blijf dichter bij het midden van de band.';
+
+    // voor de uitslag: stukken buiten T en stoppunten
+    const buiten = [];
+    let cur = null;
+    for (let i = 0; i < n; i++) {
+      if (af[i] > T) { if (!cur) { cur = []; buiten.push(cur); if (i > 0) cur.push({ x: sm[i - 1].x, y: sm[i - 1].y }); } cur.push({ x: sm[i].x, y: sm[i].y }); } else cur = null;
+    }
+    const stopPlek = stops.filter((s) => s.ms > 80).map((s) => ({ x: sm[s.first].x, y: sm[s.first].y }));
+
+    return {
+      score, tip, A: Math.round(A), B: Math.round(B), S: Math.round(S), tempoScore: Math.round(Tm), druk: Math.round(D),
+      stopFrac, vGem, rms, dekking, kriebel, snijdt, buiten, stopPlek,
+    };
+  }
+
+  function tekenUitslag(ctx, o, streken, u, vlak) {
+    const c = vlak.kleur, P = o.pts;
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.setLineDash([10, 8]);
+    ctx.strokeStyle = c.goed;
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(P[0].x, P[0].y);
+    for (let i = 1; i < P.length; i++) ctx.lineTo(P[i].x, P[i].y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.strokeStyle = c.fout;
+    ctx.lineWidth = 4;
+    for (const seg of u.buiten || []) {
+      if (seg.length < 2) continue;
+      ctx.beginPath();
+      ctx.moveTo(seg[0].x, seg[0].y);
+      for (let i = 1; i < seg.length; i++) ctx.lineTo(seg[i].x, seg[i].y);
+      ctx.stroke();
+    }
+    ctx.fillStyle = c.fout;
+    for (const s of u.stopPlek || []) { ctx.beginPath(); ctx.arc(s.x, s.y, 6, 0, Math.PI * 2); ctx.fill(); }
+    ctx.restore();
+  }
+
+  Tekentrainer.registreer({
+    id: 'slingerlijn',
+    naam: 'Slingerlijn',
+    uitleg: 'Trek in één vloeiende streek van de stip naar de vlag, binnen de band, zonder te stoppen.',
+    fundament: 'Zelfverzekerde lijnen met constant tempo vanuit schouder en elleboog; de basis van schone lineart.',
+    meerdereStreken: false,
+    toonUitslag: 1500,
+    nieuweOpgave,
+    teken,
+    nakijken,
+    tekenUitslag,
+    scorePlek: (o) => o.plek,
+  });
+})();
+
+</script>
+<script>
+/* oefeningen/hoeken.js */
+// Hoekjager: richting en hoek schatten en in één beweging uitvoeren.
+(function () {
+  const H = window.Hulp;
+  const RAD = Math.PI / 180;
+
+  // Per niveau: maximale hoekfout (graden voor score 0) en of de start meetelt.
+  const EMAX = { 1: 25, 2: 20, 3: 15, 4: 12, 5: 10 };
+  const GENOEMD4 = [30, 45, 60, 75, 105, 120, 135, 150];
+
+  // Gesigneerde fouten van de laatste pogingen (voor "je wijkt steeds dezelfde kant op").
+  const vorige = [];
+
+  // Wiskundige hoek (graden, 0 = rechts, tegen de klok in) -> eenheidsrichting op het canvas.
+  const richting = (deg) => ({ x: Math.cos(deg * RAD), y: -Math.sin(deg * RAD) });
+  const mod180 = (d) => ((d % 180) + 180) % 180;
+
+  function nieuweOpgave(niveau, rng, vlak) {
+    const m = Math.min(vlak.w, vlak.h);
+    let soort, ref = 0, doel = 0, verberg = false;
+    if (niveau === 1) { soort = 'kopie'; ref = rng.kies([0, 90, 45, 135]); }
+    else if (niveau === 2) { soort = 'kopie'; ref = rng.kies([15, 30, 45, 60, 75, 105, 120, 135, 150, 165, 0, 90]); }
+    else if (niveau === 3) { soort = rng() < 0.5 ? 'kopie' : 'loodrecht'; ref = Math.round(rng.tussen(5, 175)); }
+    else if (niveau === 4) { soort = 'hoek'; doel = rng.kies(GENOEMD4); }
+    else if (rng() < 0.5) { soort = rng() < 0.5 ? 'kopie' : 'loodrecht'; ref = Math.round(rng.tussen(5, 175)); verberg = true; }
+    else { soort = 'hoek'; do { doel = Math.round(rng.tussen(7, 173)); } while (doel % 15 === 0); }
+    if (soort === 'kopie') doel = ref;
+    else if (soort === 'loodrecht') doel = mod180(ref + 90);
+
+    const o = { niveau, soort, ref, doel, verberg, emax: EMAX[niveau], m, w: vlak.w, h: vlak.h };
+    if (verberg) o.verbergNa = 2000;
+    if (soort === 'hoek') {
+      o.start = { x: vlak.w * 0.45, y: vlak.h * 0.68 };
+      o.hulpLen = m * 0.32;
+    } else {
+      o.start = { x: vlak.w * 0.6, y: vlak.h * 0.6 };
+      const c = { x: vlak.w * 0.26, y: vlak.h * 0.6 }, r = richting(ref), half = m * 0.17;
+      o.refLijn = { x1: c.x - r.x * half, y1: c.y - r.y * half, x2: c.x + r.x * half, y2: c.y + r.y * half };
+    }
+    o.zin = soort === 'kopie' ? 'Teken evenwijdig' : soort === 'loodrecht' ? 'Teken loodrecht' : 'Teken ' + doel + '°';
+    return o;
+  }
+
+  function lijn(ctx, x1, y1, x2, y2) {
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+  }
+
+  function tekenZin(ctx, o, vlak, extra) {
+    const px = Math.round(H.clamp(o.m * 0.05, 16, 34));
+    ctx.save();
+    ctx.font = '600 ' + px + 'px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = vlak.kleur.tekst;
+    ctx.fillText(o.zin + (extra || ''), vlak.w / 2, vlak.h * 0.08);
+    ctx.restore();
+  }
+
+  function stip(ctx, o, vlak) {
+    ctx.save();
+    ctx.fillStyle = vlak.kleur.accent;
+    ctx.beginPath();
+    ctx.arc(o.start.x, o.start.y, Math.max(7, o.m * 0.014), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function teken(ctx, o, vlak, info) {
+    const verborgen = !!(info && info.verborgen && o.verberg);
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = vlak.kleur.hulp;
+    if (o.soort === 'hoek') {
+      const s = o.start;
+      lijn(ctx, s.x, s.y, s.x + o.hulpLen, s.y);
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, o.m * 0.12, 0, -o.doel * RAD, true);
+      ctx.stroke();
+    } else if (!verborgen) {
+      const l = o.refLijn;
+      lijn(ctx, l.x1, l.y1, l.x2, l.y2);
+    }
+    ctx.restore();
+    stip(ctx, o, vlak);
+    tekenZin(ctx, o, vlak, verborgen ? ' (uit je hoofd)' : '');
+  }
+
+  function isKlaar() { return true; }
+
+  // Hoek van een stuk punten (graden, wiskundig, 0..180) via PCA.
+  const hoekVan = (pts) => mod180(-H.lijnFit(pts).hoek / RAD);
+
+  function nakijken(o, streken) {
+    const ruw = streken[streken.length - 1].punten;
+    const L = H.lengte(ruw);
+    if (ruw.length < 8 || L < 40) return { ongeldig: 'Te kort, trek een langere lijn.' };
+
+    const pts = H.herbemonster(ruw, 3);
+    const n = pts.length;
+    const kern = pts.slice(Math.floor(n * 0.1), Math.max(Math.floor(n * 0.1) + 3, Math.ceil(n * 0.95)));
+    const fit = H.lijnFit(kern);
+    const gemeten = mod180(-fit.hoek / RAD);
+    const e = H.lijnHoekVerschil(gemeten * RAD, o.doel * RAD);
+    const fout = ((gemeten - o.doel + 270) % 180 + 180) % 180 - 90; // gesigneerd, tegen de klok in = +
+    const steiler = Math.abs(Math.sin(gemeten * RAD)) > Math.abs(Math.sin(o.doel * RAD));
+
+    // Rechtheid
+    let maxAfw = 0;
+    for (const p of kern) maxAfw = Math.max(maxAfw, Math.abs(H.lijnAfstand(p, { x: fit.mx, y: fit.my }, fit.dx, fit.dy)));
+    const afw = maxAfw / L;
+
+    // Start
+    const dStart = H.afstand(ruw[0], o.start);
+    const startRel = dStart / L;
+
+    // Buiging: eerste 30% t.o.v. laatste 30%
+    const k30 = Math.max(3, Math.floor(n * 0.3));
+    const buig = n >= 8 ? H.lijnHoekVerschil(hoekVan(pts.slice(0, k30)) * RAD, hoekVan(pts.slice(n - k30)) * RAD) : 0;
+
+    const sv = H.snelheden(ruw);
+    const traag = sv.length > 0 && H.mediaan(sv) < 0.0012 * o.m;
+
+    const A = H.lin(e, 1.5, o.emax);
+    const R = H.lin(afw, 0.012, 0.06);
+    const S = H.lin(dStart, 0.02 * L, 0.15 * L);
+    const metStart = o.niveau > 1;
+    const wA = metStart ? 0.7 : 0.78, wR = metStart ? 0.2 : 0.22, wS = metStart ? 0.1 : 0;
+    const score = Math.round(100 * (wA * A + wR * R + wS * S));
+
+    // Tips
+    const kant = Math.abs(fout) > 4 ? Math.sign(fout) : 0;
+    const steeds = kant !== 0 && vorige.length >= 2 && vorige.slice(-2).every((v) => v === kant);
+    vorige.push(kant);
+    if (vorige.length > 6) vorige.shift();
+
+    let tip = '';
+    if (o.soort === 'loodrecht' && H.lijnHoekVerschil(gemeten * RAD, o.ref * RAD) < 6) {
+      tip = 'Je tekende evenwijdig in plaats van loodrecht.';
+    } else {
+      const kand = [];
+      if (Math.abs(fout) > 4) {
+        const t = steiler ? 'Je lijn is te steil. Maak hem vlakker.' : 'Je lijn is te vlak. Maak hem steiler.';
+        kand.push([wA * (1 - A), steeds ? 'Je wijkt steeds dezelfde kant op: ' + t.charAt(0).toLowerCase() + t.slice(1) : t]);
+      }
+      if (buig > 6) kand.push([0.35 + 0.65 * Math.min(1, (buig - 6) / 10), 'Je buigt aan het einde af. Blijf je doel aankijken en trek door.']);
+      if (R < 0.6) {
+        kand.push([wR * (1 - R) + (traag ? 0.05 : 0),
+          traag ? 'Trek in één vloeiende, snelle beweging.' : 'Je lijn wiebelt. Trek vanuit je schouder, niet je pols.']);
+      }
+      if (metStart && S < 0.5) kand.push([wS * (1 - S), 'Begin precies op de stip.']);
+      kand.sort((a, b) => b[0] - a[0]);
+      tip = kand.length ? kand[0][1] : (score >= 85 ? 'Scherp gezien, mooie rechte lijn.' : 'Bijna. Let op hoek en rechtheid.');
+    }
+
+    return { score, tip, e, fout, gemeten, fit: { mx: fit.mx, my: fit.my, dx: fit.dx, dy: fit.dy }, lengte: L, A, R, S, buig };
+  }
+
+  const HALF = 0.36;
+
+  function tekenUitslag(ctx, o, streken, u, vlak) {
+    const m = o.m, s = o.start, d = richting(o.doel), half = m * HALF;
+    ctx.save();
+    ctx.lineCap = 'round';
+    if (o.verberg && o.refLijn) {
+      ctx.strokeStyle = vlak.kleur.hulpZacht;
+      ctx.lineWidth = 3;
+      const l = o.refLijn;
+      lijn(ctx, l.x1, l.y1, l.x2, l.y2);
+    }
+    ctx.setLineDash([10, 8]);
+    ctx.strokeStyle = vlak.kleur.goed;
+    ctx.lineWidth = 2.5;
+    lijn(ctx, s.x - d.x * half, s.y - d.y * half, s.x + d.x * half, s.y + d.y * half);
+    ctx.setLineDash([]);
+    const groot = u.e > o.emax / 2;
+    if (groot) {
+      const f = u.fit, h2 = u.lengte / 2;
+      ctx.strokeStyle = vlak.kleur.fout;
+      ctx.lineWidth = 1.5;
+      lijn(ctx, f.mx - f.dx * h2, f.my - f.dy * h2, f.mx + f.dx * h2, f.my + f.dy * h2);
+    }
+    // Hoekfout als tekst aan het uiteinde van de doellijn
+    const px = Math.round(H.clamp(m * 0.035, 13, 24));
+    ctx.font = '600 ' + px + 'px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    let ex = s.x + d.x * (half + px * 1.6), ey = s.y + d.y * (half + px * 1.6);
+    if (ex < px * 2 || ex > vlak.w - px * 2 || ey < px * 2 || ey > vlak.h - px * 2) {
+      ex = s.x - d.x * (half + px * 1.6); ey = s.y - d.y * (half + px * 1.6);
+    }
+    ex = H.clamp(ex, px * 2, vlak.w - px * 2);
+    ey = H.clamp(ey, px * 2, vlak.h - px * 2);
+    ctx.fillStyle = groot ? vlak.kleur.fout : vlak.kleur.tekst;
+    ctx.fillText('fout ' + (Math.round(u.e * 10) / 10) + '°', ex, ey);
+    ctx.restore();
+  }
+
+  // Lege plek weg van de lijnen: kies het rasterpunt met de grootste afstand tot alle lijnen.
+  function scorePlek(o, vlak) {
+    const m = o.m, s = o.start, d = richting(o.doel), half = m * HALF;
+    const segs = [[{ x: s.x - d.x * half, y: s.y - d.y * half }, { x: s.x + d.x * half, y: s.y + d.y * half }]];
+    if (o.refLijn) segs.push([{ x: o.refLijn.x1, y: o.refLijn.y1 }, { x: o.refLijn.x2, y: o.refLijn.y2 }]);
+    if (o.soort === 'hoek') segs.push([s, { x: s.x + o.hulpLen, y: s.y }]);
+    let beste = { x: vlak.w / 2, y: vlak.h / 2 }, bd = -1;
+    for (let i = 0; i <= 6; i++) for (let j = 0; j <= 4; j++) {
+      const p = { x: vlak.w * (0.2 + 0.6 * i / 6), y: vlak.h * (0.28 + 0.6 * j / 4) };
+      let dm = Infinity;
+      for (const sg of segs) dm = Math.min(dm, H.segmentAfstand(p, sg[0], sg[1]));
+      dm = Math.min(dm, H.afstand(p, s));
+      if (dm > bd) { bd = dm; beste = p; }
+    }
+    return beste;
+  }
+
+  Tekentrainer.registreer({
+    id: 'hoeken',
+    naam: 'Hoekjager',
+    uitleg: 'Trek vanaf de stip in één snelle beweging een rechte lijn in de gevraagde richting.',
+    fundament: 'Richting en hoek schatten en in één beweging uitvoeren; de basis voor perspectief en lijnen die kloppen.',
+    meerdereStreken: false,
+    toonUitslag: 1600,
+    nieuweOpgave,
+    teken,
+    isKlaar,
+    nakijken,
+    tekenUitslag,
+    scorePlek,
+  });
+})();
+
+</script>
+<script>
+/* oefeningen/arcering.js */
+// Arceerveld: vul een vorm met evenwijdige streken (gelijke hoek, afstand en druk).
+(function () {
+  const H = window.Hulp;
+  const RAD = Math.PI / 180;
+  const MIN_STREKEN = 5, MAX_STREKEN = 20;
+  const CEL = 8;           // px: rasterstap voor dekking
+  const GRENS = 6;         // px buiten de vorm = "buiten"
+
+  // Per niveau: vorm(en), hoeken (graden), afstand als fractie van de vormdiameter,
+  // of de voorbeeldlijnen blijven staan, drempelfactor, soort (const/verloop/kruis).
+  const NIVEAUS = {
+    1: { vormen: ['vierkant'], hoeken: [45], d: 0.14, blijf: true, f: 1, soort: 'const' },
+    2: { vormen: ['cirkel'], hoeken: [0, 30, 45, 60, 90], d: 0.11, blijf: false, f: 1, soort: 'const' },
+    3: { vormen: ['blob'], hoeken: null, d: 0.085, blijf: false, f: 0.8, soort: 'const' },
+    4: { vormen: ['vierkant', 'cirkel'], hoeken: [0, 30, 45, 60, 90, 120, 135, 150], d: 0.11, blijf: false, f: 1, soort: 'verloop' },
+    5: { vormen: ['vierkant', 'cirkel', 'blob'], hoeken: [0, 30, 45, 60, 90, 120], d: 0.125, blijf: false, f: 0.7, soort: 'kruis' },
+  };
+
+  // ---------- vorm ----------
+  function blobR(o, phi) {
+    return o.R * (1 + o.a1 * Math.cos(2 * phi + o.p1) + o.a2 * Math.cos(3 * phi + o.p2));
+  }
+  // Afstand tot de rand in px; > 0 = buiten, <= 0 = binnen (bij benadering voor de blob).
+  function buiten(o, x, y) {
+    const dx = x - o.cx, dy = y - o.cy;
+    if (o.vorm === 'vierkant') {
+      const qx = Math.abs(dx) - o.R, qy = Math.abs(dy) - o.R;
+      return Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0);
+    }
+    if (o.vorm === 'cirkel') return Math.hypot(dx, dy) - o.R;
+    return Math.hypot(dx, dy) - blobR(o, Math.atan2(dy, dx));
+  }
+  function pad(ctx, o) {
+    ctx.beginPath();
+    if (o.vorm === 'vierkant') ctx.rect(o.cx - o.R, o.cy - o.R, 2 * o.R, 2 * o.R);
+    else if (o.vorm === 'cirkel') ctx.arc(o.cx, o.cy, o.R, 0, Math.PI * 2);
+    else {
+      for (let i = 0; i <= 120; i++) {
+        const f = i / 120 * Math.PI * 2, r = blobR(o, f);
+        const x = o.cx + r * Math.cos(f), y = o.cy + r * Math.sin(f);
+        if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y);
+      }
+      ctx.closePath();
+    }
+  }
+
+  // ---------- opgave ----------
+  function nieuweOpgave(niveau, rng, vlak) {
+    const n = NIVEAUS[niveau];
+    const half = Math.min(vlak.w * 0.40, vlak.h * 0.38);
+    const vorm = rng.kies(n.vormen);
+    const o = {
+      niveau, vorm, cx: vlak.w / 2, cy: vlak.h * 0.53, f: n.f, soort: n.soort, blijf: n.blijf,
+      verbergNa: n.blijf ? 0 : 3000,
+    };
+    if (vorm === 'blob') {
+      o.a1 = rng.tussen(0.07, 0.11); o.a2 = rng.tussen(0.05, 0.09);
+      o.p1 = rng.tussen(0, 6.28); o.p2 = rng.tussen(0, 6.28);
+      o.R = half / (1 + o.a1 + o.a2);
+    } else o.R = half;
+    o.D = 2 * o.R;
+    const d = n.d * o.D;
+    const hoek = (n.hoeken ? rng.kies(n.hoeken) : Math.round(rng.tussen(0, 36)) * 5) * RAD;
+    if (n.soort === 'kruis') {
+      const verschil = rng.kies([30, 45, 60, 75, 90]) * RAD;
+      o.lagen = [{ hoek, d }, { hoek: hoek + verschil, d }];
+    } else if (n.soort === 'verloop') {
+      const kant = rng.kies([-1, 1]);
+      let g = [];
+      const dA = 1.55 * d, dB = 0.55 * d;
+      // aantal gaten zodat de som ~ 92% van de diameter is
+      let m = 2;
+      while (m < 40 && m * (dA + dB) / 2 < 0.92 * o.D) m++;
+      for (let j = 0; j < m; j++) g.push(dA + (dB - dA) * j / (m - 1));
+      const som = g.reduce((s, v) => s + v, 0);
+      g = g.map((v) => v * 0.92 * o.D / som);
+      if (kant < 0) g.reverse();
+      o.lagen = [{ hoek, d: H.gemiddelde(g), verloop: { kant, gaten: g } }];
+    } else o.lagen = [{ hoek, d }];
+    // Posities (loodrecht op de laag) van de voorbeeldlijnen.
+    for (const l of o.lagen) {
+      if (l.verloop) {
+        l.voorbeeld = [-0.46 * o.D];
+        for (const v of l.verloop.gaten) l.voorbeeld.push(l.voorbeeld[l.voorbeeld.length - 1] + v);
+        l.ideaal = l.voorbeeld;
+      } else {
+        l.voorbeeld = [-l.d, 0, l.d];
+        const k = Math.floor(0.5 * o.D / l.d);
+        l.ideaal = [];
+        for (let j = -k; j <= k; j++) l.ideaal.push(j * l.d);
+      }
+    }
+    return o;
+  }
+
+  function lijnen(ctx, o, laag, posities) {
+    const ux = Math.cos(laag.hoek), uy = Math.sin(laag.hoek), L = o.D;
+    ctx.beginPath();
+    for (const c of posities) {
+      const px = o.cx - uy * c, py = o.cy + ux * c;
+      ctx.moveTo(px - ux * L, py - uy * L);
+      ctx.lineTo(px + ux * L, py + uy * L);
+    }
+    ctx.stroke();
+  }
+
+  function teken(ctx, o, vlak, info) {
+    ctx.save();
+    pad(ctx, o);
+    ctx.fillStyle = vlak.kleur.hulpZacht;
+    ctx.globalAlpha = 0.35;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = vlak.kleur.hulp;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    if (!info.verborgen) {
+      pad(ctx, o);
+      ctx.clip();
+      ctx.strokeStyle = vlak.kleur.accent;
+      ctx.lineWidth = 2.5;
+      for (const l of o.lagen) lijnen(ctx, o, l, l.voorbeeld);
+    }
+    ctx.restore();
+  }
+
+  // ---------- nakijken ----------
+  const wrap = (rad) => { let d = rad % Math.PI; if (d > Math.PI / 2) d -= Math.PI; if (d <= -Math.PI / 2) d += Math.PI; return d; };
+
+  function geldigeStreken(o, streken) {
+    const uit = [];
+    streken.forEach((s, idx) => {
+      const ruw = s.punten;
+      if (!ruw || ruw.length < 2) return;
+      const len = H.lengte(ruw);
+      if (len < 0.15 * o.D) return; // tikjes
+      const pts = H.herbemonster(ruw, 4);
+      if (pts.length < 3) return;
+      const fit = H.lijnFit(pts);
+      let maxAfw = 0;
+      for (const p of pts) maxAfw = Math.max(maxAfw, Math.abs(H.lijnAfstand(p, { x: fit.mx, y: fit.my }, fit.dx, fit.dy)));
+      const a = ruw[0], b = ruw[ruw.length - 1];
+      uit.push({
+        idx, pts, len, hoek: fit.hoek, r: maxAfw / len,
+        mid: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
+        dx: b.x - a.x, dy: b.y - a.y,
+        druk: H.gemiddelde(ruw.map((p) => (typeof p.p === 'number' ? p.p : 0.5))),
+      });
+    });
+    return uit;
+  }
+
+  function regressie(ys) {
+    const m = ys.length, xm = (m - 1) / 2, ym = H.gemiddelde(ys);
+    let sxy = 0, sxx = 0;
+    for (let j = 0; j < m; j++) { sxy += (j - xm) * (ys[j] - ym); sxx += (j - xm) ** 2; }
+    const b = sxx ? sxy / sxx : 0, a = ym - b * xm;
+    return { a, b, fit: (j) => a + b * j };
+  }
+
+  function analyseLaag(o, laag, st, cellen) {
+    const f = o.f;
+    const L = (x, g, s) => H.lin(x, g * f, s * f);
+    const res = { n: st.length, fout: new Set() };
+    if (st.length < 3) { res.leeg = true; res.hoekScore = res.afstandScore = res.rechtScore = res.dekScore = 0; res.dek = 0; res.tegen = 0; res.onbedekt = cellen.map(() => true); return res; }
+
+    const diffs = st.map((s) => wrap(s.hoek - laag.hoek) / RAD);
+    const sdHoek = H.sd(diffs), gemDiff = H.gemiddelde(diffs);
+    res.sdHoek = sdHoek; res.gemDiff = gemDiff;
+    res.hoekScore = 100 * (0.5 * L(sdHoek, 2, 10) + 0.5 * L(Math.abs(gemDiff), 3, 15));
+    st.forEach((s, i) => { if (Math.abs(diffs[i]) > 6) res.fout.add(s.idx); });
+
+    // Afstanden loodrecht op de gemiddelde hoek.
+    const th = laag.hoek + gemDiff * RAD, nx = -Math.sin(th), ny = Math.cos(th);
+    const gesorteerd = st.map((s) => ({ s, q: s.mid.x * nx + s.mid.y * ny })).sort((a, b) => a.q - b.q);
+    const gaten = [];
+    for (let i = 1; i < gesorteerd.length; i++) gaten.push(gesorteerd[i].q - gesorteerd[i - 1].q);
+    const mu = H.gemiddelde(gaten);
+    res.mu = mu; res.doel = laag.d;
+    const reg = regressie(gaten), m = gaten.length;
+    res.cv = mu > 0 ? H.sd(gaten) / mu : 1;
+    let ref;
+    if (laag.verloop) {
+      const kant = laag.verloop.kant;
+      const f0 = reg.fit(0), f1 = reg.fit(m - 1);
+      const groot = kant > 0 ? f0 : f1, klein = kant > 0 ? f1 : f0;
+      res.verloopF = groot > 0 ? (groot - klein) / groot : 0;
+      const resid = gaten.map((g, j) => g - reg.fit(j));
+      res.residCv = mu > 0 ? H.sd(resid) / mu : 1;
+      res.afstandScore = 100 * (0.5 * L(res.residCv, 0.10, 0.40) + 0.5 * H.lin(res.verloopF, 0.4, 0.05));
+      ref = (j) => Math.max(1e-6, reg.fit(j));
+    } else {
+      res.afwDoel = Math.abs(mu - laag.d) / laag.d;
+      res.afstandScore = 100 * (0.6 * L(res.cv, 0.10, 0.40) + 0.4 * L(res.afwDoel, 0.15, 0.5));
+      const f0 = reg.fit(0), f1 = reg.fit(m - 1), groot = Math.max(f0, f1), klein = Math.min(f0, f1);
+      res.trend = m >= 4 && groot > 0 ? (groot - klein) / groot : 0;
+      const resid = gaten.map((g, j) => g - reg.fit(j));
+      res.residCv = mu > 0 ? H.sd(resid) / mu : 1;
+      const med = H.mediaan(gaten);
+      ref = () => med;
+    }
+    for (let j = 0; j < m; j++) {
+      const r = ref(j);
+      if (Math.abs(gaten[j] - r) / r > 0.4) res.fout.add(gesorteerd[j + 1].s.idx);
+    }
+
+    res.r = H.gemiddelde(st.map((s) => s.r));
+    res.rechtScore = 100 * L(res.r, 0.02, 0.08);
+
+    // Richting: tegen de meerderheid in.
+    const ux = Math.cos(laag.hoek), uy = Math.sin(laag.hoek);
+    const tekens = st.map((s) => (s.dx * ux + s.dy * uy >= 0 ? 1 : -1));
+    const pos = tekens.filter((t) => t > 0).length;
+    res.tegen = Math.min(pos, st.length - pos);
+
+    // Dekking.
+    const tol = laag.verloop
+      ? 0.5 * Math.min(Math.max(...gaten), 1.2 * Math.max(...laag.verloop.gaten))
+      : 0.5 * Math.min(mu, 1.5 * laag.d);
+    res.onbedekt = cellen.map(([x, y]) => {
+      for (const s of st) if (H.polyAfstand({ x, y }, s.pts) <= tol) return false;
+      return true;
+    });
+    res.dek = 1 - res.onbedekt.filter(Boolean).length / Math.max(1, cellen.length);
+    return res;
+  }
+
+  function nakijken(o, streken) {
+    const st = geldigeStreken(o, streken);
+    if (st.length < MIN_STREKEN) return { ongeldig: 'Te weinig streken: vul de vorm met minstens ' + MIN_STREKEN + ' lijnen.' };
+
+    // Raster van cellen binnen de vorm.
+    const cellen = [];
+    for (let y = o.cy - o.R; y <= o.cy + o.R; y += CEL)
+      for (let x = o.cx - o.R; x <= o.cx + o.R; x += CEL)
+        if (buiten(o, x, y) <= 0) cellen.push([x, y]);
+
+    // Lagen toewijzen op dichtstbijzijnde doelhoek (bij cross-hatching twee groepen).
+    const groepen = o.lagen.map(() => []);
+    for (const s of st) {
+      let best = 0, bd = Infinity;
+      o.lagen.forEach((l, i) => { const d = H.lijnHoekVerschil(s.hoek, l.hoek); if (d < bd) { bd = d; best = i; } });
+      groepen[best].push(s);
+    }
+    const lagen = o.lagen.map((l, i) => analyseLaag(o, l, groepen[i], cellen));
+    const gem = (k) => H.gemiddelde(lagen.map((l) => l[k]));
+
+    // Buiten de vorm: aandeel punten > GRENS px buiten.
+    let tot = 0, bui = 0;
+    for (const s of st) for (const p of s.pts) { tot++; if (buiten(o, p.x, p.y) > GRENS) bui++; }
+    const buitenPct = 100 * bui / Math.max(1, tot);
+    const dek = gem('dek');
+    const dekScore = Math.max(0, 100 * H.lin(dek, 0.9, 0.5) - 3 * buitenPct) * (lagen.every((l) => l.leeg) ? 0 : 1);
+    const dekFinal = lagen.some((l) => l.leeg) ? Math.min(dekScore, 100 * H.lin(dek, 0.9, 0.5)) : dekScore;
+
+    // Druk (muis: constant 0.5, dus CV 0).
+    const drukken = st.map((s) => s.druk);
+    const mp = H.gemiddelde(drukken);
+    const cvDruk = mp > 0 ? H.sd(drukken) / mp : 0;
+    const drukScore = 100 * H.lin(cvDruk, 0.15, 0.5);
+
+    const tegen = lagen.reduce((s, l) => s + l.tegen, 0);
+    const straf = Math.min(15, 5 * tegen);
+
+    const raw = 0.30 * gem('hoekScore') + 0.30 * gem('afstandScore') + 0.15 * gem('rechtScore') + 0.15 * dekFinal + 0.10 * drukScore - straf;
+    const score = Math.round(H.clamp(raw, 0, 100));
+
+    // Gemarkeerde (foute) streken en onbedekte cellen.
+    const fout = new Set();
+    lagen.forEach((l) => l.fout.forEach((i) => fout.add(i)));
+    const onbedekt = [];
+    cellen.forEach((c, i) => { if (lagen.some((l) => l.onbedekt[i])) onbedekt.push(c); });
+
+    const u = { score, fout: Array.from(fout), onbedekt, buitenPct, dek, cvDruk, tegen };
+    u.tip = tip(o, lagen, u);
+    return u;
+  }
+
+  function tip(o, lagen, u) {
+    const geldig = lagen.filter((l) => !l.leeg);
+    if (geldig.length < lagen.length) return 'Teken beide lagen: minstens 3 lijnen onder elke hoek.';
+    const max = (k) => Math.max(...geldig.map((l) => l[k] || 0));
+    const kand = [];
+    const sd = max('sdHoek');
+    if (sd > 6) kand.push([sd / 6, 'Je hoek schommelt; beweeg vanuit je schouder of draai je scherm.']);
+    const dev = Math.max(...geldig.map((l) => Math.abs(l.gemDiff)));
+    if (dev > 8) kand.push([dev / 8 * 0.9, 'Je hoek wijkt af van het voorbeeld; kijk goed naar de schuine lijnen.']);
+    for (const l of geldig) {
+      if (l.verloopF !== undefined) {
+        if (l.verloopF < 0.2) kand.push([1 + (0.2 - l.verloopF) * 5, 'Laat de afstand steeds kleiner worden naar één kant.']);
+        if (l.residCv > 0.25) kand.push([l.residCv / 0.25, 'Je afstanden lopen niet gelijkmatig af; kijk naar de ruimte tussen de lijnen.']);
+      } else {
+        if (l.trend > 0.3 && l.residCv < 0.25) kand.push([l.trend / 0.3 * 1.1, 'Je lijnen kruipen steeds dichter naar elkaar toe.']);
+        else if (l.cv > 0.25) kand.push([l.cv / 0.25, 'Je afstanden lopen uiteen; kijk naar de ruimte tussen de lijnen.']);
+        if (l.afwDoel > 0.3) kand.push([l.afwDoel / 0.3 * 0.8, l.mu > l.doel
+          ? 'Je lijnen staan te ver uit elkaar; zet ze dichter bij elkaar.'
+          : 'Je lijnen staan te dicht op elkaar; geef meer ruimte.']);
+      }
+    }
+    const r = max('r');
+    if (r > 0.05) kand.push([r / 0.05, 'Je lijnen buigen; trek ze in één snelle beweging.']);
+    if (u.buitenPct > 5) kand.push([u.buitenPct / 5, 'Je gaat buiten de vorm; stop je streek bij de rand.']);
+    else if (u.dek < 0.8) kand.push([0.8 / Math.max(u.dek, 0.05), 'Je stopt te vroeg; vul de hele vorm.']);
+    if (u.cvDruk > 0.35) kand.push([u.cvDruk / 0.35, 'Houd je druk gelijk.']);
+    const slecht = kand.filter((k) => k[0] >= 1).sort((a, b) => b[0] - a[0]);
+    if (slecht.length) return slecht[0][1];
+    return u.score >= 85 ? 'Mooie, gelijkmatige arcering.' : 'Houd hoek en afstand overal gelijk.';
+  }
+
+  // ---------- uitslag ----------
+  function tekenUitslag(ctx, o, streken, u, vlak) {
+    ctx.save();
+    pad(ctx, o);
+    ctx.clip();
+    // Onbedekte delen licht gemarkeerd.
+    ctx.fillStyle = vlak.kleur.fout;
+    ctx.globalAlpha = 0.16;
+    for (const [x, y] of u.onbedekt) ctx.fillRect(x - CEL / 2, y - CEL / 2, CEL, CEL);
+    ctx.globalAlpha = 1;
+    // Doelhoek als dunne lijnen.
+    ctx.strokeStyle = vlak.kleur.goed;
+    ctx.lineWidth = 1.5;
+    for (const l of o.lagen) lijnen(ctx, o, l, l.verloop ? l.ideaal : l.voorbeeld);
+    ctx.restore();
+    // Streken met afwijkende hoek of afstand.
+    ctx.strokeStyle = vlak.kleur.fout;
+    ctx.lineWidth = 4;
+    ctx.lineCap = 'round';
+    ctx.globalAlpha = 0.8;
+    for (const i of u.fout) {
+      const p = streken[i] && streken[i].punten;
+      if (!p || p.length < 2) continue;
+      ctx.beginPath();
+      ctx.moveTo(p[0].x, p[0].y);
+      for (let k = 1; k < p.length; k++) ctx.lineTo(p[k].x, p[k].y);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  Tekentrainer.registreer({
+    id: 'arcering',
+    naam: 'Arcering',
+    uitleg: 'Vul de vorm met evenwijdige lijnen: zelfde hoek, afstand en druk als het voorbeeld.',
+    fundament: 'Ritme en consistentie in evenwijdige lijnen; de basis voor schaduw, textuur en toon.',
+    meerdereStreken: true,
+    stilNa: 1500,
+    toonUitslag: 2200,
+    nieuweOpgave,
+    teken,
+    isKlaar: (o, streken) => geldigeStreken(o, streken).length >= MAX_STREKEN,
+    nakijken,
+    tekenUitslag,
+    scorePlek: (o) => ({ x: o.cx, y: o.cy }),
+  });
+})();
+
+</script>
+<script>
+/* oefeningen/proporties.js */
+// Deel & Kopieer: meten op het oog. Een lijn of vlak eerlijk verdelen en lengtes herhalen.
+(function () {
+  const H = window.Hulp;
+  const GRAAD = Math.PI / 180;
+  const TOL = { 1: 0.15, 2: 0.15, 3: 0.12, 4: 0.10, 5: 0.10 };
+  const FONT = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
+
+  // ---------- opgave ----------
+
+  function kiesSoort(niveau, rng) {
+    const schuin = (a) => rng.tussen(-a, a);
+    const gelijk = (n) => ({ soort: 'verdeel', fracs: Array.from({ length: n - 1 }, (_, i) => (i + 1) / n), gelijk: true });
+    switch (niveau) {
+      case 1: return Object.assign(gelijk(2), { hoek: 0 });
+      case 2:
+        return rng() < 0.55 ? Object.assign(gelijk(3), { hoek: 0 }) : { soort: 'kopieer', k: 1, hoek: 0 };
+      case 3: {
+        const hoek = rng.kies([0, 90, schuin(35)]);
+        return rng() < 0.6 ? Object.assign(gelijk(rng.kies([4, 5, 5])), { hoek }) : { soort: 'kopieer', k: rng.kies([2, 2, 0.5]), hoek };
+      }
+      case 4: {
+        const r = rng();
+        const hoek = rng.kies([0, 90, schuin(25)]);
+        if (r < 0.4) {
+          const as = rng.kies([0, 90]);
+          return Object.assign(gelijk(rng.kies([2, 3, 4])), { soort: 'rechthoek', hoek: as, zijde: as === 0 ? 'breedte' : 'hoogte' });
+        }
+        if (r < 0.7) return Object.assign(gelijk(rng.kies([3, 4, 5])), { hoek });
+        return { soort: 'kopieer', k: rng.kies([1, 2, 1.5]), hoek };
+      }
+      default: {
+        const hoek = rng() < 0.15 ? 90 : rng.tussen(-70, 70);
+        const r = rng();
+        if (r < 0.55) {
+          const ratio = rng.kies([[2, 3], [3, 5], [2, 3]]);
+          const s = ratio[0] + ratio[1];
+          return { soort: rng() < 0.3 ? 'rechthoek' : 'verdeel', fracs: [ratio[0] / s], gelijk: false, ratio, hoek, zijde: 'dikke zijde' };
+        }
+        return { soort: 'kopieer', k: rng.kies([1.5, 1.5, 0.5, 2]), hoek };
+      }
+    }
+  }
+
+  function nieuweOpgave(niveau, rng, vlak) {
+    const sp = kiesSoort(niveau, rng);
+    const w = vlak.w, h = vlak.h, m = Math.min(w, h);
+    const th = sp.hoek * GRAAD;
+    const u = { x: Math.cos(th), y: Math.sin(th) };
+    let v = { x: -u.y, y: u.x };
+    if (v.y < -1e-9 || (Math.abs(v.y) < 1e-9 && v.x < 0)) v = { x: -v.x, y: -v.y };
+    if (Math.abs(u.x) < 1e-9) u.x = 0;
+    if (Math.abs(v.x) < 1e-9) v.x = 0;
+
+    // Lokale uitgebreidheid (in eenheden van L): langs u en langs v.
+    const r = sp.soort === 'rechthoek' ? 0.5 + rng() * 0.35 : 0;
+    const gap = 0.3;
+    const a1 = sp.soort === 'kopieer' ? Math.max(1, sp.k) : 1;
+    const b1 = sp.soort === 'kopieer' ? gap : r;
+    const hoeken = [[0, 0], [a1, 0], [a1, b1], [0, b1]].map(([a, b]) => ({ x: a * u.x + b * v.x, y: a * u.y + b * v.y }));
+    const bx0 = Math.min(...hoeken.map((p) => p.x)), bx1 = Math.max(...hoeken.map((p) => p.x));
+    const by0 = Math.min(...hoeken.map((p) => p.y)), by1 = Math.max(...hoeken.map((p) => p.y));
+
+    const pad = 0.1 * m;
+    const vx0 = 0.05 * w, vx1 = 0.95 * w, vy0 = 0.17 * h, vy1 = 0.95 * h;
+    const Lmax = Math.min((vx1 - vx0 - 2 * pad) / Math.max(bx1 - bx0, 1e-6), (vy1 - vy0 - 2 * pad) / Math.max(by1 - by0, 1e-6));
+    const L = Math.min(Lmax, 1.3 * m) * rng.tussen(0.75, 0.97);
+    const vrijX = Math.max(0, vx1 - vx0 - 2 * pad - (bx1 - bx0) * L);
+    const vrijY = Math.max(0, vy1 - vy0 - 2 * pad - (by1 - by0) * L);
+    const A = {
+      x: vx0 + pad + rng() * vrijX - bx0 * L,
+      y: vy0 + pad + rng() * vrijY - by0 * L,
+    };
+    const B = { x: A.x + u.x * L, y: A.y + u.y * L };
+    const Q = r * L;
+
+    const o = {
+      soort: sp.soort, niveau, A, B, u, v, L, Q, hoek: sp.hoek, tol: TOL[niveau],
+      bbox: { x0: vx0 + 0, x1: vx1, y0: 0, y1: 0 },
+    };
+    o.bbox = {
+      x0: A.x + bx0 * L - pad, x1: A.x + bx1 * L + pad,
+      y0: A.y + by0 * L - pad, y1: A.y + by1 * L + pad,
+    };
+    if (sp.soort === 'kopieer') {
+      o.k = sp.k;
+      o.T = sp.k * L;
+      o.S = { x: A.x + v.x * gap * L, y: A.y + v.y * gap * L };
+      o.E = { x: o.S.x + u.x * o.T, y: o.S.y + u.y * o.T };
+    } else {
+      o.fracs = sp.fracs;
+      o.gelijk = sp.gelijk;
+      o.ratio = sp.ratio;
+      o.zijde = sp.zijde;
+    }
+    if (niveau === 4) o.verbergNa = 3000;
+    o.tekst = tekstVoor(o);
+    return o;
+  }
+
+  function tekstVoor(o) {
+    if (o.soort === 'kopieer') {
+      if (o.k === 1) {
+        const ah = Math.abs(o.hoek);
+        return 'Teken dezelfde lengte ' + (ah < 10 ? 'eronder' : ah === 90 ? 'ernaast' : 'evenwijdig') + ', vanaf de stip';
+      }
+      const w = o.k === 2 ? 'een lijn van 2× deze lengte' : o.k === 0.5 ? 'een lijn van de helft van deze lengte' : 'een lijn van 1,5× deze lengte';
+      return 'Teken ' + w + ', vanaf de stip';
+    }
+    const N = o.fracs.length;
+    const wat = o.soort === 'rechthoek' ? 'de ' + o.zijde : 'de lijn';
+    if (!o.gelijk) return 'Zet 1 streepje dat ' + wat + ' verdeelt in ' + o.ratio[0] + ' : ' + o.ratio[1];
+    if (N === 1) return 'Zet 1 streepje dat ' + wat + ' in 2 gelijke delen verdeelt';
+    return 'Zet ' + N + ' streepjes die ' + wat + ' in ' + (N + 1) + ' gelijke delen verdelen';
+  }
+
+  // ---------- tekenen ----------
+
+  const punt = (o, a, b) => ({ x: o.A.x + o.u.x * a + o.v.x * b, y: o.A.y + o.u.y * a + o.v.y * b });
+
+  function lijn(ctx, p, q) { ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(q.x, q.y); ctx.stroke(); }
+
+  function tick(ctx, o, P, half) {
+    lijn(ctx, { x: P.x - o.v.x * half, y: P.y - o.v.y * half }, { x: P.x + o.v.x * half, y: P.y + o.v.y * half });
+  }
+
+  function tekenOpdracht(ctx, o, vlak) {
+    let px = Math.round(H.clamp(Math.min(vlak.w, vlak.h) * 0.055, 14, 26));
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.font = '600 ' + px + 'px ' + FONT;
+    while (px > 11 && ctx.measureText(o.tekst).width > vlak.w * 0.94) { px--; ctx.font = '600 ' + px + 'px ' + FONT; }
+    ctx.fillStyle = vlak.kleur.tekst;
+    ctx.fillText(o.tekst, vlak.w / 2, Math.max(8, vlak.h * 0.035));
+  }
+
+  // Referentie (lijn/rechthoek); bij verborgen alleen de eindmarkeringen van een verdeel-opgave.
+  function tekenReferentie(ctx, o, vlak, verborgen) {
+    const m = Math.min(vlak.w, vlak.h);
+    const tk = Math.max(8, 0.035 * m);
+    ctx.strokeStyle = vlak.kleur.hulp;
+    ctx.lineCap = 'round';
+    if (o.soort === 'kopieer') {
+      if (!verborgen) {
+        ctx.lineWidth = 3;
+        lijn(ctx, o.A, o.B);
+        ctx.lineWidth = 2.5;
+        tick(ctx, o, o.A, tk);
+        tick(ctx, o, o.B, tk);
+      }
+      return;
+    }
+    if (o.soort === 'rechthoek' && !verborgen) {
+      ctx.lineWidth = 2;
+      const c = [punt(o, 0, 0), punt(o, o.L, 0), punt(o, o.L, o.Q), punt(o, 0, o.Q)];
+      ctx.beginPath();
+      ctx.moveTo(c[0].x, c[0].y);
+      for (let i = 1; i < 4; i++) ctx.lineTo(c[i].x, c[i].y);
+      ctx.closePath();
+      ctx.stroke();
+    }
+    if (!verborgen) { ctx.lineWidth = o.soort === 'rechthoek' ? 3.5 : 3; lijn(ctx, o.A, o.B); }
+    ctx.lineWidth = 3;
+    const h = o.soort === 'rechthoek' ? Math.max(tk, 0.5 * o.Q * 0.35) : tk * 1.3;
+    tick(ctx, o, o.A, h);
+    tick(ctx, o, o.B, h);
+  }
+
+  function teken(ctx, o, vlak, info) {
+    tekenOpdracht(ctx, o, vlak);
+    tekenReferentie(ctx, o, vlak, !!(info && info.verborgen));
+    if (o.soort === 'kopieer') {
+      const r = Math.max(5, 0.014 * Math.min(vlak.w, vlak.h));
+      ctx.fillStyle = vlak.kleur.accent;
+      ctx.beginPath();
+      ctx.arc(o.S.x, o.S.y, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // ---------- nakijken ----------
+
+  // Streken die een markering zijn: kort langs de as. Positie = zwaartepunt op de as (px vanaf A).
+  function markeringen(o, streken) {
+    const uit = [];
+    for (const st of streken) {
+      const pts = st.punten;
+      if (!pts || !pts.length) continue;
+      const pad = H.lengte(pts);
+      const rs = pts.length > 1 && pad > 0 ? H.herbemonster(pts, 2) : pts;
+      const pr = rs.map((q) => (q.x - o.A.x) * o.u.x + (q.y - o.A.y) * o.u.y);
+      const span = Math.max(...pr) - Math.min(...pr);
+      if (span <= 0.12 * o.L && pad <= 0.12 * o.L + 1.6 * o.Q) uit.push({ p: H.gemiddelde(pr) });
+    }
+    uit.sort((a, b) => a.p - b.p);
+    return uit;
+  }
+
+  function nakijkenVerdeel(o, streken) {
+    const N = o.fracs.length, L = o.L;
+    const mk = markeringen(o, streken);
+    if (!mk.length) return { ongeldig: 'Zet kleine streepjes dwars op de lijn.' };
+    const ideaal = o.fracs.map((f) => f * L);
+    const juist = mk.length === N;
+    let paren;
+    if (juist) paren = ideaal.map((id, i) => ({ ideal: id, p: mk[i].p }));
+    else {
+      const gebruikt = new Set();
+      paren = ideaal.map((id) => {
+        let best = -1, bd = Infinity;
+        mk.forEach((x, j) => { if (!gebruikt.has(j) && Math.abs(x.p - id) < bd) { bd = Math.abs(x.p - id); best = j; } });
+        if (best < 0) return { ideal: id, p: null };
+        gebruikt.add(best);
+        return { ideal: id, p: mk[best].p };
+      });
+    }
+    for (const q of paren) {
+      q.d = q.p === null ? null : (q.p - q.ideal) / L;
+      q.e = q.p === null ? 0.1 : Math.abs(q.d);
+      q.s = 100 * H.lin(q.e, 0.005, o.tol);
+    }
+    let score = H.gemiddelde(paren.map((q) => q.s)) - (juist ? 0 : 30);
+    score = Math.round(H.clamp(score, 0, 100));
+
+    let tip;
+    if (!juist) {
+      tip = (N === 1 ? 'Het moet 1 streepje zijn' : 'Het moeten ' + N + ' streepjes zijn') + ', je zette er ' + mk.length + '.';
+    } else if (score >= 90) {
+      tip = 'Goed gezien.';
+    } else {
+      tip = verdeelTip(o, paren, L);
+    }
+    return { score, tip, soort: 'verdeel', paren, aantal: mk.length };
+  }
+
+  function verdeelTip(o, paren, L) {
+    const N = paren.length;
+    const pos = paren.map((q) => q.p);
+    if (o.gelijk && N >= 2) {
+      const ideaalDeel = L / (N + 1);
+      const laatste = L - pos[N - 1];
+      if ((laatste - ideaalDeel) / ideaalDeel < -0.15) return 'Het laatste deel wordt kleiner; verdeel eerst in het midden.';
+    }
+    if (o.gelijk && N >= 2) {
+      const naar = [];
+      for (const q of paren) {
+        const richting = Math.sign(L / 2 - q.ideal);
+        if (Math.abs(q.ideal - L / 2) > 0.05 * L) naar.push((q.p - q.ideal) * richting / L);
+      }
+      if (naar.length >= 2 && naar.every((x) => x > 0.01) && H.gemiddelde(naar) > 0.03) return 'Je streepjes liggen te dicht bij het midden.';
+    }
+    const delen = [];
+    let vorig = 0, vorigIdeaal = 0;
+    for (const q of paren) {
+      delen.push(((q.p - vorig) - (q.ideal - vorigIdeaal)) / (q.ideal - vorigIdeaal));
+      vorig = q.p; vorigIdeaal = q.ideal;
+    }
+    const gem = H.gemiddelde(delen);
+    if (gem > 0.08) return 'Je maakt het stuk te lang. Vergelijk met de referentie.';
+    if (gem < -0.08) return 'Je maakt het stuk te kort. Vergelijk met de referentie.';
+    return o.gelijk ? 'Vergelijk de delen met elkaar; ze moeten even lang zijn.' : 'Schat de verhouding nog eens: vergelijk het korte en het lange stuk.';
+  }
+
+  function nakijkenKopieer(o, streken) {
+    const pts = streken[streken.length - 1].punten;
+    if (pts.length < 2 || H.lengte(pts) < 0.15 * o.T) return { ongeldig: 'Te kort, probeer opnieuw.' };
+    const a = pts[0], b = pts[pts.length - 1];
+    const vx = b.x - a.x, vy = b.y - a.y;
+    let M = vx * o.u.x + vy * o.u.y;
+    const teken = M < 0 ? -1 : 1;
+    M = Math.abs(M);
+    const verschil = Math.hypot(vx, vy);
+    const alfa = verschil > 0 ? Math.atan2(Math.abs(vx * o.u.y - vy * o.u.x), M) / GRAAD : 90;
+    const signed = (M - o.T) / o.T;
+    const e = Math.abs(signed);
+    const strafRichting = 2 * Math.max(0, alfa - 3);
+    const score = Math.round(H.clamp(100 * H.lin(e, 0.005, o.tol) - strafRichting, 0, 100));
+    let tip;
+    if (score >= 90) tip = 'Goed gezien.';
+    else if (Math.abs(signed) > 0.08) tip = 'Je maakt het stuk te ' + (signed < 0 ? 'kort' : 'lang') + '. Vergelijk met de referentie.';
+    else if (alfa > 8) tip = 'Je lijn loopt scheef. Houd dezelfde richting als de referentie.';
+    else tip = 'Bijna: vergelijk de lengte nog eens met de referentie.';
+    return { score, tip, soort: 'kopieer', M, signed, alfa, teken };
+  }
+
+  function nakijken(o, streken) {
+    if (o.soort === 'kopieer') return nakijkenKopieer(o, streken);
+    return nakijkenVerdeel(o, streken);
+  }
+
+  function isKlaar(o, streken) {
+    if (o.soort === 'kopieer') return streken.length >= 1;
+    return markeringen(o, streken).length >= o.fracs.length;
+  }
+
+  // ---------- uitslag ----------
+
+  function pct(d) { const x = Math.round(d * 100); return (x > 0 ? '+' : x < 0 ? '−' : '') + Math.abs(x) + '%'; }
+
+  function label(ctx, vlak, tekst, P, kleur) {
+    const px = Math.round(H.clamp(Math.min(vlak.w, vlak.h) * 0.032, 11, 18));
+    ctx.font = '700 ' + px + 'px ' + FONT;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = vlak.kleur.papier || 'transparent';
+    ctx.strokeText(tekst, P.x, P.y);
+    ctx.fillStyle = kleur;
+    ctx.fillText(tekst, P.x, P.y);
+  }
+
+  function tekenUitslag(ctx, o, streken, u, vlak) {
+    const m = Math.min(vlak.w, vlak.h);
+    ctx.save();
+    if (o.niveau === 4) { ctx.globalAlpha = 0.45; tekenReferentie(ctx, o, vlak, false); ctx.globalAlpha = 1; }
+    ctx.lineCap = 'round';
+    if (u.soort === 'verdeel') {
+      const half = o.soort === 'rechthoek' ? null : 0.06 * m;
+      ctx.setLineDash([8, 6]);
+      ctx.strokeStyle = vlak.kleur.goed;
+      ctx.lineWidth = 2.5;
+      for (const q of u.paren) {
+        const P = punt(o, q.ideal, 0);
+        if (half === null) lijn(ctx, punt(o, q.ideal, -0.03 * m), punt(o, q.ideal, o.Q + 0.03 * m));
+        else tick(ctx, o, P, half);
+      }
+      ctx.setLineDash([]);
+      const buiten = (o.soort === 'rechthoek' ? 0.03 * m : half) + 0.04 * m;
+      for (const q of u.paren) {
+        if (q.p === null) continue;
+        const slecht = q.e > o.tol / 2;
+        const kl = slecht ? vlak.kleur.fout : vlak.kleur.goed;
+        if (slecht) {
+          ctx.strokeStyle = vlak.kleur.fout;
+          ctx.lineWidth = 4;
+          lijn(ctx, punt(o, q.ideal, 0), punt(o, q.p, 0));
+        }
+        ctx.fillStyle = kl;
+        const P = punt(o, q.p, 0);
+        ctx.beginPath();
+        ctx.arc(P.x, P.y, 5, 0, Math.PI * 2);
+        ctx.fill();
+        if (slecht) label(ctx, vlak, pct(q.d), punt(o, q.p, -buiten), vlak.kleur.fout);
+      }
+    } else {
+      const S = o.S, E = o.E;
+      const tk = Math.max(8, 0.035 * m);
+      ctx.setLineDash([8, 6]);
+      ctx.strokeStyle = vlak.kleur.goed;
+      ctx.lineWidth = 3;
+      lijn(ctx, S, E);
+      ctx.setLineDash([]);
+      ctx.lineWidth = 3;
+      tick(ctx, o, E, tk);
+      const slecht = Math.abs(u.signed) > o.tol / 2;
+      const Ep = { x: S.x + o.u.x * u.M, y: S.y + o.u.y * u.M };
+      if (slecht) {
+        ctx.strokeStyle = vlak.kleur.fout;
+        ctx.lineWidth = 5;
+        lijn(ctx, E, Ep);
+      }
+      ctx.fillStyle = slecht ? vlak.kleur.fout : vlak.kleur.goed;
+      ctx.beginPath();
+      ctx.arc(Ep.x, Ep.y, 5, 0, Math.PI * 2);
+      ctx.fill();
+      if (slecht) label(ctx, vlak, pct(u.signed), { x: E.x + o.v.x * 0.07 * m, y: E.y + o.v.y * 0.07 * m }, vlak.kleur.fout);
+      if (u.alfa > 8) label(ctx, vlak, Math.round(u.alfa) + '° scheef', { x: S.x + o.v.x * 0.07 * m, y: S.y + o.v.y * 0.07 * m }, vlak.kleur.fout);
+    }
+    ctx.restore();
+  }
+
+  // Lege plek boven of onder de opgave (anders links/rechts ervan).
+  function scorePlek(o, vlak) {
+    const b = o.bbox, m = Math.min(vlak.w, vlak.h);
+    const top0 = 0.13 * vlak.h;
+    const boven = b.y0 - top0, onder = vlak.h - b.y1;
+    if (Math.max(boven, onder) >= 0.2 * m) {
+      return boven >= onder
+        ? { x: vlak.w / 2, y: top0 + boven / 2 }
+        : { x: vlak.w / 2, y: b.y1 + onder / 2 };
+    }
+    const links = b.x0, rechts = vlak.w - b.x1;
+    if (Math.max(links, rechts) >= 0.25 * vlak.w) {
+      return links >= rechts ? { x: links / 2, y: vlak.h / 2 } : { x: b.x1 + rechts / 2, y: vlak.h / 2 };
+    }
+    return { x: vlak.w / 2, y: boven >= onder ? top0 + Math.max(boven, 0) / 2 : b.y1 + Math.max(onder, 0) / 2 };
+  }
+
+  Tekentrainer.registreer({
+    id: 'proporties',
+    naam: 'Proporties',
+    uitleg: 'Verdeel lijnen en vlakken eerlijk en kopieer lengtes, op het oog.',
+    fundament: 'Meten op het oog: elke goede tekening begint met proporties.',
+    meerdereStreken: true,
+    stilNa: 1500,
+    toonUitslag: 2200,
+    nieuweOpgave,
+    teken,
+    isKlaar,
+    nakijken,
+    tekenUitslag,
+    scorePlek,
+  });
+})();
+
+</script>
+<script>
+/* oefeningen/perspectief.js */
+// Richting verdwijnpunt: schat de richting naar een verdwijnpunt (VP) en trek vanuit elk kruisje
+// één rechte lijn die erheen wijst. Basis van perspectief.
+(function () {
+  const H = window.Hulp;
+  const RAD = 180 / Math.PI;
+
+  // Per niveau: aantal startpunten, hoek-tolerantie (graden), afstand startpunt-VP (fractie van min(w,h)),
+  // aantal VP's, hulpstraal, VP buiten beeld.
+  const NIVEAUS = {
+    1: { n: [3, 3], thetaMax: 12, afstand: [0.45, 0.8], vps: 1, hulp: true, buiten: false },
+    2: { n: [3, 4], thetaMax: 9, afstand: [0.4, 0.8], vps: 1, hulp: false, buiten: false },
+    3: { n: [4, 4], thetaMax: 7, afstand: [0.35, 0.75], vps: 2, hulp: false, buiten: false },
+    4: { n: [4, 5], thetaMax: 5, afstand: [0.25, 0.45], vps: 2, hulp: false, buiten: false },
+    5: { n: [4, 5], thetaMax: 4, afstand: [0.3, 3], vps: 1, hulp: false, buiten: true },
+  };
+
+  // ---------- opgave ----------
+  function nieuweOpgave(niveau, rng, vlak) {
+    const cfg = NIVEAUS[niveau];
+    const w = vlak.w, h = vlak.h, m = Math.min(w, h);
+    const marge = 0.07 * m;
+    const n = Math.floor(rng.tussen(cfg.n[0], cfg.n[1] + 1 - 1e-9));
+    const vps = [];
+    if (cfg.buiten) {
+      for (let poging = 0; poging < 200; poging++) {
+        const a = rng.tussen(0, 2 * Math.PI), d = rng.tussen(0.75, 1.5) * w;
+        const x = w / 2 + Math.cos(a) * d, y = h / 2 + Math.sin(a) * d;
+        if (x < -0.08 * m || x > w + 0.08 * m || y < -0.08 * m || y > h + 0.08 * m) { vps.push({ x, y, vorm: 'rond' }); break; }
+      }
+      if (!vps.length) vps.push({ x: w * 1.4, y: h * 0.3, vorm: 'rond' });
+    } else if (cfg.vps === 1) {
+      vps.push({ x: rng.tussen(0.35, 0.65) * w, y: rng.tussen(0.28, 0.5) * h, vorm: 'rond' });
+    } else {
+      const yl = rng.tussen(0.3, 0.5) * h, yr = rng.tussen(0.3, 0.5) * h;
+      vps.push({ x: rng.tussen(0.1, 0.2) * w, y: yl, vorm: 'rond' });
+      vps.push({ x: rng.tussen(0.8, 0.9) * w, y: yr, vorm: 'vierkant' });
+    }
+
+    const starts = [];
+    for (let i = 0; i < n; i++) {
+      const vp = cfg.vps === 2 ? i % 2 : 0;
+      let relax = 1, gelukt = false, kies = null;
+      for (let poging = 0; poging < 900 && !gelukt; poging++) {
+        if (poging % 150 === 149) relax *= 0.8;
+        const x = rng.tussen(marge, w - marge), y = rng.tussen(0.14 * h, h - marge);
+        const V = vps[vp], d = Math.hypot(V.x - x, V.y - y);
+        kies = { x, y, vp };
+        if (d < cfg.afstand[0] * m * relax || d > cfg.afstand[1] * m) continue;
+        if (vps.some((q) => Math.hypot(q.x - x, q.y - y) < 0.14 * m)) continue;
+        if (starts.some((s) => Math.hypot(s.x - x, s.y - y) < 0.2 * m * relax)) continue;
+        // Lijnen naar hetzelfde VP niet bijna op elkaar.
+        const hoek = Math.atan2(V.y - y, V.x - x);
+        if (starts.some((s) => s.vp === vp && H.lijnHoekVerschil(hoek, Math.atan2(V.y - s.y, V.x - s.x)) < 7 * relax)) continue;
+        gelukt = true;
+      }
+      starts.push(kies);
+    }
+    return { niveau, vps, starts, thetaMax: cfg.thetaMax, hulp: cfg.hulp, buiten: cfg.buiten, m, w, h };
+  }
+
+  // ---------- meetkunde ----------
+  function eenheid(o, k) {
+    const s = o.starts[k], V = o.vps[s.vp];
+    const d = Math.hypot(V.x - s.x, V.y - s.y) || 1;
+    return { ux: (V.x - s.x) / d, uy: (V.y - s.y) / d, d };
+  }
+
+  // Eindpunt van de ideale lijn: het VP, of (buiten beeld) de rand van het vlak.
+  function eindpunt(o, k) {
+    const s = o.starts[k], { ux, uy, d } = eenheid(o, k);
+    let t = d;
+    if (o.buiten) {
+      t = Infinity;
+      if (ux > 1e-9) t = Math.min(t, (o.w - s.x) / ux); else if (ux < -1e-9) t = Math.min(t, -s.x / ux);
+      if (uy > 1e-9) t = Math.min(t, (o.h - s.y) / uy); else if (uy < -1e-9) t = Math.min(t, -s.y / uy);
+      t = Math.min(d, Math.max(0, t));
+    }
+    return { x: s.x + ux * t, y: s.y + uy * t };
+  }
+
+  function geldig(o, st) {
+    return st.punten.length >= 12 && H.lengte(st.punten) >= Math.min(60, 0.2 * o.m);
+  }
+
+  // Koppel elke geldige streek aan het dichtstbijzijnde nog vrije startpunt. Geeft per streek de index (of -1).
+  function toewijzing(o, streken) {
+    const vrij = o.starts.map(() => true);
+    return streken.map((st) => {
+      if (!geldig(o, st)) return -1;
+      const p0 = st.punten[0];
+      let best = -1, bd = Infinity;
+      o.starts.forEach((s, k) => {
+        const d = Math.hypot(s.x - p0.x, s.y - p0.y);
+        if (vrij[k] && d < bd) { bd = d; best = k; }
+      });
+      if (best >= 0) vrij[best] = false;
+      return best;
+    });
+  }
+
+  // ---------- tekenen ----------
+  function vpKleur(o, vlak, i) {
+    return o.vps.length === 2 && i === 1 ? vlak.kleur.tekst : vlak.kleur.accent;
+  }
+
+  function vorm(ctx, vorm, x, y, r, vul) {
+    ctx.beginPath();
+    if (vorm === 'rond') ctx.arc(x, y, r, 0, 2 * Math.PI);
+    else ctx.rect(x - r, y - r, 2 * r, 2 * r);
+    if (vul) ctx.fill(); else ctx.stroke();
+  }
+
+  function teken(ctx, o, vlak, info) {
+    const m = o.m, K = vlak.kleur;
+    const gedaan = new Set();
+    toewijzing(o, (info && info.streken) || []).forEach((k) => { if (k >= 0) gedaan.add(k); });
+    ctx.save();
+    ctx.lineCap = 'round';
+
+    // Hulpstralen (niveau 1).
+    if (o.hulp) {
+      ctx.strokeStyle = K.hulp;
+      ctx.globalAlpha = 0.55;
+      ctx.lineWidth = 1.5;
+      o.starts.forEach((s, k) => {
+        const e = eindpunt(o, k);
+        ctx.beginPath(); ctx.moveTo(s.x, s.y); ctx.lineTo(e.x, e.y); ctx.stroke();
+      });
+      ctx.globalAlpha = 1;
+    }
+
+    // Verdwijnpunt(en).
+    const r = Math.max(7, 0.022 * m);
+    o.vps.forEach((V, i) => {
+      if (o.buiten) return;
+      ctx.fillStyle = vpKleur(o, vlak, i);
+      vorm(ctx, V.vorm, V.x, V.y, r, true);
+      ctx.strokeStyle = K.hulp; ctx.lineWidth = 2;
+      vorm(ctx, V.vorm, V.x, V.y, r + 4, false);
+    });
+    if (o.buiten) pijl(ctx, o, vlak);
+
+    // Startkruisjes.
+    const c = Math.max(8, 0.028 * m);
+    o.starts.forEach((s, k) => {
+      const klaar = gedaan.has(k);
+      const kl = o.vps.length === 2 ? vpKleur(o, vlak, s.vp) : K.hulp;
+      ctx.strokeStyle = klaar ? K.tekstZacht : kl;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(s.x - c, s.y); ctx.lineTo(s.x + c, s.y);
+      ctx.moveTo(s.x, s.y - c); ctx.lineTo(s.x, s.y + c);
+      ctx.stroke();
+      if (o.vps.length === 2) {
+        ctx.fillStyle = vpKleur(o, vlak, s.vp);
+        vorm(ctx, o.vps[s.vp].vorm, s.x + c * 0.9, s.y - c * 0.9, Math.max(4, c * 0.4), true);
+      }
+      if (klaar) {
+        ctx.strokeStyle = K.goed; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(s.x, s.y, c * 1.25, 0, 2 * Math.PI); ctx.stroke();
+      }
+    });
+    ctx.restore();
+  }
+
+  // Pijl aan de rand van het vlak in de richting van het VP buiten beeld.
+  function pijl(ctx, o, vlak) {
+    const V = o.vps[0], cx = o.w / 2, cy = o.h / 2, m = o.m;
+    const dx = V.x - cx, dy = V.y - cy, L = Math.hypot(dx, dy) || 1, ux = dx / L, uy = dy / L;
+    const ins = 0.06 * m;
+    let t = Infinity;
+    if (ux > 1e-9) t = Math.min(t, (o.w - ins - cx) / ux); else if (ux < -1e-9) t = Math.min(t, (ins - cx) / ux);
+    if (uy > 1e-9) t = Math.min(t, (o.h - ins - cy) / uy); else if (uy < -1e-9) t = Math.min(t, (ins - cy) / uy);
+    const px = cx + ux * t, py = cy + uy * t, s = Math.max(10, 0.035 * m);
+    ctx.fillStyle = vlak.kleur.accent;
+    ctx.beginPath();
+    ctx.moveTo(px + ux * s, py + uy * s);
+    ctx.lineTo(px - ux * s * 0.6 - uy * s * 0.8, py - uy * s * 0.6 + ux * s * 0.8);
+    ctx.lineTo(px - ux * s * 0.6 + uy * s * 0.8, py - uy * s * 0.6 - ux * s * 0.8);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // ---------- nakijken ----------
+  function snelheidsProfiel(pts) {
+    // Snelheid per ~40 ms venster, tegen jitter van losse events.
+    const v = [];
+    let a = pts[0];
+    for (let i = 1; i < pts.length; i++) {
+      const dt = pts[i].t - a.t;
+      if (dt >= 40) { v.push(H.afstand(a, pts[i]) / dt); a = pts[i]; }
+    }
+    return v;
+  }
+
+  // Aantal pauzes (>120 ms nagenoeg stilstaan) midden in de streek.
+  function pauzes(pts) {
+    let n = 0, anker = 0;
+    for (let i = 1; i < pts.length; i++) {
+      if (H.afstand(pts[anker], pts[i]) > 2.5) {
+        const eind = H.afstand(pts[i - 1], pts[i]) < 8 ? pts[i].t : pts[i - 1].t;
+        if (anker > 0 && eind - pts[anker].t > 120) n++;
+        anker = i;
+      }
+    }
+    return n;
+  }
+
+  function meetStreek(o, st, k) {
+    const s = o.starts[k], { ux, uy } = eenheid(o, k);
+    const pts = st.punten;
+    const dS = H.afstand(pts[0], s);
+    const rest = pts.slice(Math.floor(pts.length * 0.1));
+    const f = H.lijnFit(rest);
+    let fx = f.dx, fy = f.dy;
+    if (fx * ux + fy * uy < 0) { fx = -fx; fy = -fy; }
+    const theta = Math.atan2(ux * fy - uy * fx, ux * fx + uy * fy) * RAD; // + = kloksgewijs (scherm)
+    // Kant waarop de lijn langs het VP loopt.
+    const horizontaal = Math.abs(ux) >= Math.abs(uy);
+    const kantWaarde = theta * Math.sign(horizontaal ? ux || 1 : uy || 1); // + = onder / links
+    const kant = horizontaal ? (kantWaarde > 0 ? 'onder' : 'boven') : (kantWaarde > 0 ? 'links' : 'rechts');
+
+    const L = H.lengte(rest) || 1;
+    const e = rest.map((p) => H.lijnAfstand(p, { x: f.mx, y: f.my }, f.dx, f.dy));
+    const rms = Math.sqrt(H.gemiddelde(e.map((v) => v * v)));
+    const derde = Math.max(1, Math.floor(e.length / 3));
+    const bow = H.gemiddelde(e.slice(derde, e.length - derde)) -
+      0.5 * (H.gemiddelde(e.slice(0, derde)) + H.gemiddelde(e.slice(e.length - derde)));
+    const recht = rms / L;
+    const krom = recht > 0.02 && Math.abs(bow) > 0.5 * rms;
+
+    const sp = snelheidsProfiel(pts);
+    const gem = H.gemiddelde(sp);
+    const cv = gem > 0 ? H.sd(sp) / gem : 0;
+    const pauze = pauzes(pts);
+
+    const sHoek = 100 * H.lin(Math.abs(theta), 0, o.thetaMax);
+    const sRecht = 100 * H.lin(recht, 0, 0.03);
+    const sVloei = Math.max(0, 100 - 40 * Math.max(0, cv - 0.5) - 15 * pauze);
+    const sStart = 100 * H.lin(dS, 25, 75);
+    const score = 0.6 * sHoek + 0.25 * sRecht + 0.1 * sVloei + 0.05 * sStart;
+    return { k, theta, kant, horizontaal, dS, recht, krom, cv, pauze, score };
+  }
+
+  function nakijken(o, streken) {
+    const wijs = toewijzing(o, streken);
+    const details = [];
+    wijs.forEach((k, si) => { if (k >= 0) details.push(Object.assign(meetStreek(o, streken[si], k), { si })); });
+    if (!details.length) return { ongeldig: 'Te kort: trek een lange lijn vanuit het kruisje.' };
+
+    const n = o.starts.length;
+    const ontbreekt = n - details.length;
+    const score = Math.round(details.reduce((s, d) => s + d.score, 0) / n);
+
+    // Tips met een ernst; de ergste wint.
+    const kandidaten = [];
+    if (ontbreekt > 0) kandidaten.push([10, 'Trek een lijn vanuit elk kruisje.']);
+    const krom = details.filter((d) => d.krom);
+    if (krom.length) {
+      const zelfde = krom.length;
+      kandidaten.push([H.gemiddelde(krom.map((d) => d.recht)) / 0.02 * (zelfde > 1 ? 1.1 : 0.9), 'Je lijnen buigen: trek sneller en vanuit je schouder.']);
+    }
+    for (const kant of ['boven', 'onder', 'links', 'rechts']) {
+      const g = details.filter((d) => d.kant === kant && Math.abs(d.theta) > 1);
+      if (g.length < 3 || g.length < 0.6 * details.length) continue;
+      const gemAbs = H.gemiddelde(g.map((d) => Math.abs(d.theta)));
+      if (gemAbs > 3) kandidaten.push([gemAbs / 3, 'Je lijnen wijzen steeds te ver ' + kant + (kant === 'links' || kant === 'rechts' ? ' van' : '') + ' het punt.']);
+    }
+    const aarzel = details.filter((d) => d.pauze > 0 || d.cv > 0.8);
+    if (aarzel.length) kandidaten.push([1.5 * aarzel.length / details.length + 0.3, 'Je aarzelt halverwege: kijk naar het verdwijnpunt, niet naar je pen.']);
+    const ver = details.filter((d) => d.dS > 25);
+    if (ver.length) kandidaten.push([H.gemiddelde(ver.map((d) => d.dS)) / 25 * (ver.length / details.length), 'Begin precies op het kruisje.']);
+
+    let tip;
+    if (kandidaten.length) {
+      kandidaten.sort((x, y) => y[0] - x[0]);
+      tip = kandidaten[0][1];
+    } else if (score >= 85) tip = 'Mooi: rechte lijnen die naar het punt wijzen.';
+    else tip = 'Schat de richting eerst: kijk naar het verdwijnpunt en trek dan in één beweging.';
+    return { score, tip, details, ontbreekt };
+  }
+
+  // ---------- uitslag ----------
+  function tekenUitslag(ctx, o, streken, u, vlak) {
+    const K = vlak.kleur, m = o.m;
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.setLineDash([10, 8]);
+    ctx.strokeStyle = K.goed;
+    ctx.lineWidth = 2.5;
+    o.starts.forEach((s, k) => {
+      const e = eindpunt(o, k);
+      ctx.beginPath(); ctx.moveTo(s.x, s.y); ctx.lineTo(e.x, e.y); ctx.stroke();
+    });
+    ctx.setLineDash([]);
+    const fs = Math.round(H.clamp(m * 0.032, 11, 15));
+    ctx.font = '600 ' + fs + 'px ' + (getComputedStyle(document.body).fontFamily || 'sans-serif');
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    for (const d of u.details || []) {
+      const slecht = Math.abs(d.theta) > o.thetaMax / 2;
+      const pts = streken[d.si].punten;
+      if (slecht) {
+        ctx.strokeStyle = K.fout; ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        pts.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
+        ctx.stroke();
+      }
+      const a = pts[pts.length - 1], b = pts[Math.max(0, pts.length - 6)];
+      const L = H.afstand(a, b) || 1;
+      ctx.fillStyle = slecht ? K.fout : K.tekstZacht;
+      ctx.fillText(Math.abs(d.theta).toFixed(1) + '°', a.x + (a.x - b.x) / L * 18, a.y + (a.y - b.y) / L * 14);
+    }
+    ctx.restore();
+  }
+
+  // Lege plek weg van de ideale lijnen, VP's en kruisjes (bij voorkeur onderin).
+  function scorePlek(o, vlak) {
+    const w = vlak.w, h = vlak.h, m = o.m;
+    const lijnen = o.starts.map((s, k) => [s, eindpunt(o, k)]);
+    const punten = o.starts.concat(o.vps.filter(() => !o.buiten));
+    let beste = { x: w / 2, y: h * 0.8 }, bw = -Infinity;
+    for (let i = 0; i <= 6; i++) {
+      for (let j = 0; j <= 5; j++) {
+        const p = { x: w * (0.2 + 0.6 * i / 6), y: h * (0.35 + 0.5 * j / 5) };
+        let c = Infinity;
+        for (const [a, b] of lijnen) c = Math.min(c, H.segmentAfstand(p, a, b));
+        for (const q of punten) c = Math.min(c, H.afstand(p, q));
+        const waarde = Math.min(c, 0.3 * m) + 0.25 * p.y;
+        if (waarde > bw) { bw = waarde; beste = p; }
+      }
+    }
+    return beste;
+  }
+
+  Tekentrainer.registreer({
+    id: 'perspectief',
+    naam: 'Richting verdwijnpunt',
+    uitleg: 'Trek vanuit elk kruisje in één beweging een rechte lijn richting het verdwijnpunt.',
+    fundament: 'Lijnrichting naar een verdwijnpunt inschatten en rechttrekken vanuit je schouder; de basis van perspectief.',
+    meerdereStreken: true,
+    stilNa: 0,
+    toonUitslag: 2200,
+    nieuweOpgave,
+    teken,
+    isKlaar(o, streken) { return toewijzing(o, streken).filter((k) => k >= 0).length >= o.starts.length; },
+    nakijken,
+    tekenUitslag,
+    scorePlek,
+  });
+})();
+
+</script>
+<script>
+/* oefeningen/dozen.js */
+// Doos afmaken: een 3D-doos in perspectief; teken de ontbrekende ribben vanaf het gemarkeerde hoekpunt.
+(function () {
+  const H = window.Hulp;
+  const RAD = Math.PI / 180;
+
+  // Per niveau: draaihoeken (graden), camera-afstand (in doosgroottes; klein = sterke convergentie),
+  // aantal ontbrekende ribben, hulplijnen, en of verborgen ribben meedoen.
+  const NIVEAUS = {
+    1: { yaw: [38, 52], pitch: [26, 36], roll: [0, 0], cam: 14, mist: 3, aantal: 3, gids: true, verborgen: false },
+    2: { yaw: [38, 52], pitch: [26, 36], roll: [0, 0], cam: 14, mist: 3, aantal: 3, gids: false, verborgen: false },
+    3: { yaw: [20, 62], pitch: [14, 38], roll: [-14, 14], cam: 4.6, mist: 5, aantal: 5, gids: false, verborgen: false },
+    4: { yaw: [22, 58], pitch: [0, 7], roll: [0, 0], cam: 3.2, mist: 7, aantal: 7, gids: false, verborgen: true },
+    5: { yaw: [0, 360], pitch: [-55, 55], roll: [-40, 40], cam: 2.7, mist: 6, aantal: 6, gids: false, verborgen: true },
+  };
+
+  // Hoekpunt i: bit0 = x, bit1 = y, bit2 = z. Rib = twee hoekpunten die in precies één bit verschillen.
+  const RIBBEN = [];
+  for (let i = 0; i < 8; i++) for (let k = 0; k < 3; k++) if (!(i & (1 << k))) RIBBEN.push({ a: i, b: i | (1 << k), as: k });
+
+  function shuffle(lijst, rng) {
+    const l = lijst.slice();
+    for (let i = l.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [l[i], l[j]] = [l[j], l[i]]; }
+    return l;
+  }
+
+  function projecteer(n, rng, dims) {
+    const yaw = rng.tussen(n.yaw[0], n.yaw[1]) * RAD * (rng() < 0.5 ? -1 : 1);
+    const pitch = rng.tussen(n.pitch[0], n.pitch[1]) * RAD * (rng() < 0.5 ? -1 : 1);
+    const roll = rng.tussen(n.roll[0], n.roll[1]) * RAD;
+    const cy = Math.cos(yaw), sy = Math.sin(yaw), cx = Math.cos(pitch), sx = Math.sin(pitch), cz = Math.cos(roll), sz = Math.sin(roll);
+    const diag = Math.hypot(dims[0], dims[1], dims[2]);
+    const cam = n.cam * diag / 1.7;
+    const pts = [];
+    for (let i = 0; i < 8; i++) {
+      let x = ((i & 1) ? 0.5 : -0.5) * dims[0], y = ((i & 2) ? 0.5 : -0.5) * dims[1], z = ((i & 4) ? 0.5 : -0.5) * dims[2];
+      let t = x * cy + z * sy; z = -x * sy + z * cy; x = t;      // yaw (om y)
+      t = y * cx - z * sx; z = y * sx + z * cx; y = t;           // pitch (om x)
+      t = x * cz - y * sz; y = x * sz + y * cz; x = t;           // roll (om z)
+      const zc = cam + z;                                         // z > 0 = verder weg
+      pts.push({ x: x * cam / zc, y: -y * cam / zc, z });
+    }
+    return pts;
+  }
+
+  const gebied = (vlak) => vlak.w >= vlak.h * 1.15
+    ? { x0: vlak.w * 0.04, x1: vlak.w * 0.60, y0: vlak.h * 0.10, y1: vlak.h * 0.92, score: { x: vlak.w * 0.80, y: vlak.h * 0.5 } }
+    : { x0: vlak.w * 0.05, x1: vlak.w * 0.95, y0: vlak.h * 0.08, y1: vlak.h * 0.70, score: { x: vlak.w * 0.5, y: vlak.h * 0.86 } };
+
+  const vlakArea = (v, ids) => {
+    let s = 0;
+    for (let i = 0; i < ids.length; i++) { const p = v[ids[i]], q = v[ids[(i + 1) % ids.length]]; s += p.x * q.y - q.x * p.y; }
+    return Math.abs(s) / 2;
+  };
+
+  function bouw(n, rng, vlak) {
+    const dims = [rng.tussen(0.8, 1.25), rng.tussen(0.8, 1.25), rng.tussen(0.8, 1.25)];
+    for (let poging = 0; poging < 30; poging++) {
+      const v = projecteer(n, rng, dims);
+      // Voorvlak: per as de nabije kant, daarvan het vlak met de grootste oppervlakte.
+      let front = null, besteArea = -1;
+      for (let k = 0; k < 3; k++) {
+        const kant = [0, 1].map((s) => { const ids = []; for (let i = 0; i < 8; i++) if (((i >> k) & 1) === s) ids.push(i); return ids; });
+        const diep = kant.map((ids) => H.gemiddelde(ids.map((i) => v[i].z)));
+        const ids = diep[0] <= diep[1] ? kant[0] : kant[1];
+        const ordered = [ids[0], ids[1], ids[3], ids[2]];
+        const a = vlakArea(v, ordered);
+        if (a > besteArea) { besteArea = a; front = ids; }
+      }
+      let verborgen = 0;
+      for (let i = 1; i < 8; i++) if (v[i].z > v[verborgen].z) verborgen = i;
+      if (front.includes(verborgen)) continue;
+
+      // Naar het vlak schalen en centreren.
+      const g = gebied(vlak);
+      const minx = Math.min(...v.map((p) => p.x)), maxx = Math.max(...v.map((p) => p.x));
+      const miny = Math.min(...v.map((p) => p.y)), maxy = Math.max(...v.map((p) => p.y));
+      const k = Math.min((g.x1 - g.x0) / (maxx - minx), (g.y1 - g.y0) / (maxy - miny));
+      const cx = (g.x0 + g.x1) / 2, cy = (g.y0 + g.y1) / 2, mx = (minx + maxx) / 2, my = (miny + maxy) / 2;
+      const punten = v.map((p) => ({ x: cx + (p.x - mx) * k, y: cy + (p.y - my) * k, z: p.z }));
+      let D = 0;
+      for (const a of front) for (const b of front) D = Math.max(D, H.afstand(punten[a], punten[b]));
+      if (D < Math.min(vlak.w, vlak.h) * 0.12) continue;
+      // Geen bijna-samenvallende hoekpunten (dan is een rib niet te tekenen).
+      let kort = Infinity;
+      for (const r of RIBBEN) kort = Math.min(kort, H.afstand(punten[r.a], punten[r.b]));
+      if (kort < D * 0.18) continue;
+      return { punten, front, verborgen, D };
+    }
+    return null;
+  }
+
+  function nieuweOpgave(niveau, rng, vlak) {
+    const n = NIVEAUS[niveau];
+    let doos = null;
+    while (!doos) doos = bouw(n, rng, vlak);
+    const { punten, front, verborgen, D } = doos;
+
+    const ribben = RIBBEN.map((r, i) => {
+      const inFront = front.includes(r.a) && front.includes(r.b);
+      const verb = r.a === verborgen || r.b === verborgen;
+      return { i, a: r.a, b: r.b, as: r.as, inFront, verb, status: inFront ? 'gegeven' : 'weg' };
+    });
+    const zichtbaar = shuffle(ribben.filter((r) => !r.inFront && !r.verb), rng);
+    const kandidaten = n.verborgen ? shuffle(ribben.filter((r) => !r.inFront), rng) : zichtbaar;
+    // Op niveau 4/5 blijven er alleen zichtbare ribben als gegeven over.
+    let mist = [];
+    if (n.verborgen) {
+      const gegeven = zichtbaar.slice(0, kandidaten.length - n.aantal);
+      mist = kandidaten.filter((r) => !gegeven.includes(r));
+    } else mist = kandidaten.slice(0, n.aantal);
+    for (const r of ribben) if (!r.inFront) r.status = mist.includes(r) ? 'mist' : (r.verb ? 'verborgen' : 'gegeven');
+
+    // Beginpunt: een hoekpunt dat al bestaat (voorvlak of eind van een gegeven rib); anders het nabije uiteinde.
+    const bekend = new Set(front);
+    for (const r of ribben) if (r.status === 'gegeven') { bekend.add(r.a); bekend.add(r.b); }
+    for (const r of mist) {
+      let s = r.a, e = r.b;
+      const ak = bekend.has(r.a), bk = bekend.has(r.b);
+      if (ak && !bk) { s = r.a; e = r.b; }
+      else if (bk && !ak) { s = r.b; e = r.a; }
+      else if (punten[r.a].z > punten[r.b].z) { s = r.b; e = r.a; }
+      r.s = s; r.e = e;
+    }
+    return {
+      niveau, punten, ribben, mist: mist.slice().sort((x, y) => x.i - y.i), front, D, gids: n.gids,
+      gebied: gebied(vlak),
+    };
+  }
+
+  const P = (o, i) => o.punten[i];
+  const lijn = (ctx, a, b) => { ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); };
+
+  function teken(ctx, o, vlak, info) {
+    const m = Math.min(vlak.w, vlak.h);
+    ctx.save();
+    ctx.lineCap = 'round';
+    if (o.gids) {
+      // Dunne hulplijnen: de gegeven ribben doorgetrokken richting hun verdwijnpunt.
+      const assen = new Set(o.mist.map((r) => r.as));
+      ctx.strokeStyle = vlak.kleur.hulpZacht;
+      ctx.lineWidth = 1;
+      ctx.setLineDash([6, 6]);
+      const L = Math.hypot(vlak.w, vlak.h);
+      for (const r of o.ribben) {
+        if (r.status !== 'gegeven' || !assen.has(r.as)) continue;
+        const a = P(o, r.a), b = P(o, r.b), d = H.afstand(a, b);
+        const ux = (b.x - a.x) / d, uy = (b.y - a.y) / d;
+        lijn(ctx, { x: a.x - ux * L, y: a.y - uy * L }, { x: a.x + ux * L, y: a.y + uy * L });
+      }
+      ctx.setLineDash([]);
+    }
+    ctx.strokeStyle = vlak.kleur.hulp;
+    ctx.lineWidth = 2.2;
+    for (const r of o.ribben) if (r.status === 'gegeven' || r.inFront) lijn(ctx, P(o, r.a), P(o, r.b));
+    // Beginpunten van de ontbrekende ribben.
+    ctx.fillStyle = vlak.kleur.accent;
+    const rad = Math.max(5, m * 0.012);
+    const gezet = new Set();
+    for (const r of o.mist) {
+      if (gezet.has(r.s)) continue;
+      gezet.add(r.s);
+      ctx.beginPath(); ctx.arc(P(o, r.s).x, P(o, r.s).y, rad, 0, Math.PI * 2); ctx.fill();
+    }
+    // Teller.
+    const n = Math.min(o.mist.length, (info && info.streken ? info.streken.length : 0));
+    ctx.fillStyle = vlak.kleur.tekstZacht;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.font = '600 ' + Math.round(H.clamp(m * 0.045, 16, 30)) + 'px sans-serif';
+    ctx.fillText(n + '/' + o.mist.length, 14, 12);
+    ctx.restore();
+  }
+
+  function isKlaar(o, streken) { return streken.length >= o.mist.length; }
+
+  // ---------- nakijken ----------
+  function hoekVan(v) { return Math.atan2(v.y, v.x); }
+  function wikkel(h) { while (h > Math.PI / 2) h -= Math.PI; while (h <= -Math.PI / 2) h += Math.PI; return h; }
+
+  function koppel(o, streken) {
+    const paren = [];
+    streken.forEach((st, si) => {
+      const p0 = st.punten[0], pn = st.punten[st.punten.length - 1];
+      o.mist.forEach((r, ri) => {
+        const b = P(o, r.s), e = P(o, r.e);
+        // Begin (en bij gedeelde hoekpunten ook het eind) bepaalt bij welke rib de streek hoort.
+        const d = Math.min(H.afstand(p0, b) + 0.5 * H.afstand(pn, e), H.afstand(pn, b) + 0.5 * H.afstand(p0, e));
+        paren.push({ si, ri, d });
+      });
+    });
+    paren.sort((x, y) => x.d - y.d);
+    const sGebruikt = new Set(), rGebruikt = new Set(), uit = [];
+    for (const p of paren) {
+      if (sGebruikt.has(p.si) || rGebruikt.has(p.ri)) continue;
+      sGebruikt.add(p.si); rGebruikt.add(p.ri);
+      let pts = streken[p.si].punten;
+      const b = P(o, o.mist[p.ri].s);
+      if (H.afstand(pts[pts.length - 1], b) < H.afstand(pts[0], b)) pts = pts.slice().reverse();
+      uit.push({ ri: p.ri, rib: o.mist[p.ri], pts });
+    }
+    return uit;
+  }
+
+  function nakijken(o, streken) {
+    const D = o.D;
+    for (const st of streken) if (st.punten.length < 3 || H.lengte(st.punten) < D * 0.1) return { ongeldig: 'Te kort: trek elke rib in één lange streek.' };
+    const gekoppeld = koppel(o, streken);
+    const per = [];
+    for (const g of gekoppeld) {
+      const b = P(o, g.rib.s), e = P(o, g.rib.e);
+      const p0 = g.pts[0], pn = g.pts[g.pts.length - 1];
+      const L = H.afstand(p0, pn) || 1;
+      const s = H.afstand(p0, b) / D;
+      let dx = (pn.x - p0.x) / L, dy = (pn.y - p0.y) / L, r = 0;
+      for (const p of g.pts) r = Math.max(r, Math.abs(H.lijnAfstand(p, p0, dx, dy)));
+      r /= L;
+      const ideaal = { x: e.x - b.x, y: e.y - b.y };
+      const iL = Math.hypot(ideaal.x, ideaal.y);
+      const cos = ((pn.x - p0.x) * ideaal.x + (pn.y - p0.y) * ideaal.y) / (L * iL);
+      const alfa = Math.acos(H.clamp(cos, -1, 1)) / RAD;
+      const eind = H.afstand(pn, e) / D;
+      const sn = H.snelheden(g.pts);
+      const mid = sn.slice(Math.floor(sn.length * 0.15), Math.ceil(sn.length * 0.85));
+      const cv = mid.length >= 4 && H.gemiddelde(mid) > 0 ? H.sd(mid) / H.gemiddelde(mid) : 0;
+      let score = 100 * (0.15 * H.lin(s, 0, 0.10) + 0.15 * H.lin(r, 0.01, 0.06) + 0.40 * H.lin(alfa, 2, 14) + 0.30 * H.lin(eind, 0.03, 0.20));
+      if (cv > 0.6) score *= 0.9;
+      per.push({ ri: g.ri, rib: g.rib, pts: g.pts, s, r, alfa, eind, cv, lenFout: L / iL - 1, score });
+    }
+
+    // Parallelcontrole per as: gegeven + getekende ribben die evenwijdig/convergerend horen te zijn.
+    const getekend = new Map(per.map((x) => [x.rib.i, x]));
+    let som = 0, aantal = 0, signed = 0;
+    for (let k = 0; k < 3; k++) {
+      const leden = [];
+      let u = null, beste = -1;
+      for (const r of o.ribben) {
+        if (r.as !== k) continue;
+        const d = getekend.get(r.i);
+        if (!(d || r.status === 'gegeven' || r.inFront)) continue;
+        const a = P(o, r.a), b = P(o, r.b);
+        const nab = a.z <= b.z ? a : b, ver = a.z <= b.z ? b : a;
+        const diep = Math.abs(a.z - b.z);
+        if (diep > beste) { beste = diep; u = { x: ver.x - nab.x, y: ver.y - nab.y }; }
+        leden.push({ r, d, a, b });
+      }
+      if (leden.length < 2) continue;
+      const ul = Math.hypot(u.x, u.y); u = { x: u.x / ul, y: u.y / ul };
+      const ori = (v) => (v.x * u.x + v.y * u.y < 0 ? { x: -v.x, y: -v.y } : v);
+      for (const l of leden) {
+        l.ideaal = ori({ x: P(o, l.r.b).x - P(o, l.r.a).x, y: P(o, l.r.b).y - P(o, l.r.a).y });
+        l.mid = { x: (P(o, l.r.a).x + P(o, l.r.b).x) / 2, y: (P(o, l.r.a).y + P(o, l.r.b).y) / 2 };
+        l.dir = l.d ? ori({ x: l.d.pts[l.d.pts.length - 1].x - l.d.pts[0].x, y: l.d.pts[l.d.pts.length - 1].y - l.d.pts[0].y }) : l.ideaal;
+        if (l.d) l.mid = { x: (l.d.pts[0].x + l.d.pts[l.d.pts.length - 1].x) / 2, y: (l.d.pts[0].y + l.d.pts[l.d.pts.length - 1].y) / 2 };
+      }
+      // Uiteen/naar elkaar (langs u, weg van de kijker): positief = uiteen.
+      const uiteen = (x, y, imid, jmid) => {
+        const zijde = Math.sign(u.x * (jmid.y - imid.y) - u.y * (jmid.x - imid.x));
+        return zijde * Math.atan2(x.x * y.y - x.y * y.x, x.x * y.x + x.y * y.y);
+      };
+      for (let i = 0; i < leden.length; i++) for (let j = i + 1; j < leden.length; j++) {
+        if (!leden[i].d && !leden[j].d) continue;
+        // De zijde bepalen we op de ideale middens (stabiel), de hoeken op de getekende richtingen.
+        const im = { x: (P(o, leden[i].r.a).x + P(o, leden[i].r.b).x) / 2, y: (P(o, leden[i].r.a).y + P(o, leden[i].r.b).y) / 2 };
+        const jm = { x: (P(o, leden[j].r.a).x + P(o, leden[j].r.b).x) / 2, y: (P(o, leden[j].r.a).y + P(o, leden[j].r.b).y) / 2 };
+        const ex = uiteen(leden[i].dir, leden[j].dir, im, jm) - uiteen(leden[i].ideaal, leden[j].ideaal, im, jm);
+        som += Math.abs(ex) / RAD; aantal++; signed += ex / RAD;
+      }
+    }
+    const par = aantal ? som / aantal : 0;
+    const parSigned = aantal ? signed / aantal : 0;
+    const straf = 15 * (1 - H.lin(par, 3, 14));
+
+    const totaal = per.reduce((t, x) => t + x.score, 0) / o.mist.length;
+    const score = Math.round(H.clamp(totaal - straf, 0, 100));
+
+    // Tips: de grootste afwijking t.o.v. haar drempel wint.
+    const gem = (f) => H.gemiddelde(per.map(f));
+    const lenGem = gem((x) => x.lenFout);
+    const zelfde = per.filter((x) => Math.sign(x.lenFout) === Math.sign(lenGem)).length / Math.max(1, per.length);
+    const onrust = per.filter((x) => x.cv > 0.6).length / Math.max(1, per.length);
+    const kand = [
+      [par / 6, parSigned < 0 ? 'Je ribben lopen te veel naar elkaar toe.' : 'Je ribben lopen te veel uit elkaar.'],
+      [Math.max(gem((x) => x.r) / 0.03, onrust >= 0.4 ? 1.3 : 0), 'Trek in één vloeiende beweging vanuit je schouder.'],
+      [zelfde >= 0.7 ? Math.abs(lenGem) / 0.12 : 0, lenGem > 0 ? 'Je ribben worden te lang; kijk vooruit naar het eindpunt.' : 'Je ribben worden te kort; kijk vooruit naar het eindpunt.'],
+      [gem((x) => x.s) / 0.06, 'Begin precies op de hoek.'],
+      [gem((x) => x.alfa) / 8, 'Let op de richting: laat elke rib meelopen met de evenwijdige ribben.'],
+    ].filter((k) => k[0] > 1).sort((a, b) => b[0] - a[0]);
+    const tip = kand.length ? kand[0][1] : (score >= 85 ? 'Mooi: rechte, stevige ribben.' : 'Kijk nog even naar de richting en het eindpunt.');
+
+    return { score, tip, per, par, straf };
+  }
+
+  function tekenUitslag(ctx, o, streken, u, vlak) {
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = vlak.kleur.goed;
+    ctx.globalAlpha = 0.55;
+    ctx.lineWidth = 1.5;
+    for (const r of o.ribben) {
+      if (r.status === 'mist') continue;
+      ctx.setLineDash(r.status === 'verborgen' ? [4, 6] : []);
+      lijn(ctx, P(o, r.a), P(o, r.b));
+    }
+    ctx.globalAlpha = 1;
+    ctx.setLineDash([10, 8]);
+    ctx.lineWidth = 2.5;
+    for (const r of o.mist) lijn(ctx, P(o, r.s), P(o, r.e));
+    ctx.setLineDash([]);
+    ctx.strokeStyle = vlak.kleur.fout;
+    ctx.lineWidth = 3;
+    for (const x of u.per) {
+      if (x.score >= 60) continue;
+      ctx.beginPath();
+      x.pts.forEach((p, k) => (k ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  Tekentrainer.registreer({
+    id: 'dozen',
+    naam: 'Dozen',
+    uitleg: 'Maak de doos af: trek elke ontbrekende rib in één streek vanaf de stip.',
+    fundament: 'Evenwijdige ribben convergeren naar dezelfde verdwijnpunten; trek rechte, zelfverzekerde lijnen.',
+    meerdereStreken: true,
+    stilNa: 0,
+    toonUitslag: 2200,
+    nieuweOpgave,
+    teken,
+    isKlaar,
+    nakijken,
+    tekenUitslag,
+    scorePlek: (o) => o.gebied.score,
+  });
+})();
+
+</script>
+<script>
+/* oefeningen/geheugen.js */
+// Kijk, verberg, teken: een vorm even zien, die verdwijnt, en dan uit je hoofd natekenen.
+(function () {
+  const H = window.Hulp;
+  const N = 64;                     // punten per vorm na herbemonstering
+  const D2R = Math.PI / 180;
+
+  // Per niveau: toontijd in ms en of het ankerkruis (startpunt) getoond wordt.
+  const TOON = { 1: 4000, 2: 3000, 3: 3000, 4: 3000, 5: 2000 };
+  const ANKER = { 1: true, 2: true, 3: false, 4: false, 5: false };
+
+  // ---------- meetkunde ----------
+  const sub = (a, b) => ({ x: a.x - b.x, y: a.y - b.y });
+  const hoekTussen = (a, b) => {
+    const la = Math.hypot(a.x, a.y), lb = Math.hypot(b.x, b.y);
+    if (!la || !lb) return 0;
+    const c = H.clamp((a.x * b.x + a.y * b.y) / (la * lb), -1, 1);
+    return Math.acos(c) / D2R;
+  };
+
+  // Herbemonster een gesloten lijn (laatste punt sluit terug naar het eerste) naar n punten.
+  function resSluit(pts, n) {
+    const p = [];
+    for (const q of pts) if (!p.length || H.afstand(p[p.length - 1], q) > 1e-9) p.push({ x: q.x, y: q.y });
+    if (p.length < 2) return Array.from({ length: n }, () => ({ x: p[0].x, y: p[0].y }));
+    p.push({ x: p[0].x, y: p[0].y });
+    const cum = [0];
+    for (let i = 1; i < p.length; i++) cum.push(cum[i - 1] + H.afstand(p[i - 1], p[i]));
+    const L = cum[cum.length - 1];
+    const uit = [];
+    let j = 1;
+    for (let k = 0; k < n; k++) {
+      const s = L * k / n;
+      while (j < p.length - 1 && cum[j] < s) j++;
+      const d = cum[j] - cum[j - 1] || 1;
+      const f = (s - cum[j - 1]) / d;
+      uit.push({ x: p[j - 1].x + (p[j].x - p[j - 1].x) * f, y: p[j - 1].y + (p[j].y - p[j - 1].y) * f });
+    }
+    return uit;
+  }
+
+  const omtrekGesloten = (pts) => H.lengte(pts) + H.afstand(pts[pts.length - 1], pts[0]);
+
+  function middelpunt(pts) {
+    return { x: H.gemiddelde(pts.map((p) => p.x)), y: H.gemiddelde(pts.map((p) => p.y)) };
+  }
+  function bbox(pts) {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const p of pts) { x0 = Math.min(x0, p.x); y0 = Math.min(y0, p.y); x1 = Math.max(x1, p.x); y1 = Math.max(y1, p.y); }
+    return { x0, y0, x1, y1, w: x1 - x0, h: y1 - y0 };
+  }
+  // Centroïde naar de oorsprong en schaal naar eenheids-RMS-straal.
+  function normaliseer(pts) {
+    const c = middelpunt(pts);
+    const s = Math.sqrt(H.gemiddelde(pts.map((p) => (p.x - c.x) ** 2 + (p.y - c.y) ** 2))) || 1;
+    return pts.map((p) => ({ x: (p.x - c.x) / s, y: (p.y - c.y) / s }));
+  }
+
+  // Hoekpunten: richtingswijziging > 40 graden in een venster van 5 punten (gesloten lijn).
+  // De hoek zelf wordt gemeten uit de richtingen vlak voor en na de piek, zodat de meting
+  // niet afhangt van waar de herbemonstering toevallig valt.
+  function detecteerHoeken(P) {
+    const n = P.length, at = (i) => P[((i % n) + n) % n];
+    const w = [];
+    for (let i = 0; i < n; i++) w.push(hoekTussen(sub(at(i), at(i - 2)), sub(at(i + 2), at(i))));
+    const uit = [];
+    for (let i = 0; i < n; i++) {
+      if (w[i] <= 40) continue;
+      let top = true;
+      for (let d = -2; d <= 2 && top; d++) {
+        if (!d) continue;
+        const v = w[((i + d) % n + n) % n];
+        if (d < 0 ? v >= w[i] : v > w[i]) top = false;
+      }
+      if (!top) continue;
+      const draai = hoekTussen(sub(at(i - 2), at(i - 5)), sub(at(i + 5), at(i + 2)));
+      uit.push({ i, x: at(i).x, y: at(i).y, draai });
+    }
+    return uit;
+  }
+
+  // ---------- vormen (rond de oorsprong, grootste afmeting = s) ----------
+  const cirkel = (s) => Array.from({ length: 96 }, (_, k) => ({ x: s / 2 * Math.cos(k / 96 * 2 * Math.PI - Math.PI / 2), y: s / 2 * Math.sin(k / 96 * 2 * Math.PI - Math.PI / 2) }));
+  const rechthoek = (w, h) => [{ x: -w / 2, y: -h / 2 }, { x: w / 2, y: -h / 2 }, { x: w / 2, y: h / 2 }, { x: -w / 2, y: h / 2 }];
+  const driehoek = (b, h) => [{ x: 0, y: -h / 2 }, { x: b / 2, y: h / 2 }, { x: -b / 2, y: h / 2 }];
+  function druppel(s) {
+    const uit = [];
+    for (let k = 0; k < 96; k++) {
+      const t = k / 96 * 2 * Math.PI;
+      uit.push({ x: Math.sin(t) * Math.sin(t / 2), y: -Math.cos(t) });
+    }
+    const b = bbox(uit), f = s / Math.max(b.w, b.h);
+    return uit.map((p) => ({ x: p.x * f, y: p.y * f }));
+  }
+  function ster(s) {
+    const uit = [];
+    for (let k = 0; k < 10; k++) {
+      const r = k % 2 ? 0.45 : 1, a = -Math.PI / 2 + k * Math.PI / 5;
+      uit.push({ x: r * Math.cos(a), y: r * Math.sin(a) });
+    }
+    const b = bbox(uit), f = s / Math.max(b.w, b.h);
+    return uit.map((p) => ({ x: p.x * f, y: p.y * f }));
+  }
+
+  // Controle voor onregelmatige veelhoeken: elke hoek scherp genoeg en geen te korte zijde.
+  function veelhoekGoed(v) {
+    const n = v.length, omtrek = omtrekGesloten(v);
+    for (let i = 0; i < n; i++) {
+      const a = v[(i + n - 1) % n], b = v[i], c = v[(i + 1) % n];
+      if (hoekTussen(sub(b, a), sub(c, b)) < 55) return false;
+      if (H.afstand(b, c) < 0.1 * omtrek) return false;
+    }
+    return true;
+  }
+  function onregelmatig(s, rng) {
+    for (let poging = 0; poging < 300; poging++) {
+      const n = rng.kies([5, 6]), stap = 2 * Math.PI / n;
+      const v = [];
+      for (let k = 0; k < n; k++) {
+        const a = k * stap + rng.tussen(-0.25, 0.25) * stap - Math.PI / 2, r = rng.tussen(0.55, 1);
+        v.push({ x: r * Math.cos(a), y: r * Math.sin(a) });
+      }
+      if (!veelhoekGoed(v)) continue;
+      const b = bbox(v), f = s / Math.max(b.w, b.h);
+      return v.map((p) => ({ x: p.x * f, y: p.y * f }));
+    }
+    const v = Array.from({ length: 5 }, (_, k) => ({ x: Math.cos(k * 2 * Math.PI / 5 - Math.PI / 2), y: Math.sin(k * 2 * Math.PI / 5 - Math.PI / 2) }));
+    const b = bbox(v), f = s / Math.max(b.w, b.h);
+    return v.map((p) => ({ x: p.x * f, y: p.y * f }));
+  }
+
+  // Basisvorm kiezen: s = grootste afmeting.
+  function basis(soort, s, rng) {
+    switch (soort) {
+      case 'cirkel': return { naam: 'cirkel', pts: cirkel(s) };
+      case 'vierkant': return { naam: 'vierkant', pts: rechthoek(s, s) };
+      case 'driehoek': return { naam: 'driehoek', pts: driehoek(s, s * 0.87) };
+      case 'rechthoek2:1': return rng.kies([0, 1]) ? { naam: 'rechthoek', pts: rechthoek(s, s / 2) } : { naam: 'rechthoek', pts: rechthoek(s / 2, s) };
+      case 'rechthoek1:3': return rng.kies([0, 1]) ? { naam: 'rechthoek', pts: rechthoek(s, s / 3) } : { naam: 'rechthoek', pts: rechthoek(s / 3, s) };
+      case 'driehoek2:1': return rng.kies([0, 1]) ? { naam: 'driehoek', pts: driehoek(s, s / 2) } : { naam: 'driehoek', pts: driehoek(s / 2.2, s) };
+      case 'driehoek1:3': return { naam: 'driehoek', pts: driehoek(s / 3, s) };
+      case 'onregelmatig': return { naam: 'veelhoek', pts: onregelmatig(s, rng) };
+      case 'druppel': return { naam: 'druppel', pts: druppel(s) };
+      case 'ster': return { naam: 'ster', pts: ster(s) };
+    }
+    throw new Error('onbekende vorm ' + soort);
+  }
+
+  // Zet een vorm op een plek (bbox-midden op cx, cy) en bereken alles wat nakijken nodig heeft.
+  function maakVorm(pts, cx, cy, naam) {
+    const b = bbox(pts), mx = (b.x0 + b.x1) / 2, my = (b.y0 + b.y1) / 2;
+    const dicht = pts.map((p) => ({ x: p.x - mx + cx, y: p.y - my + cy }));
+    const p64 = resSluit(dicht, N);
+    const c = middelpunt(p64);
+    return { naam, dicht, p64, c, bb: bbox(p64), norm: normaliseer(p64), hoeken: detecteerHoeken(normaliseer(p64)), omtrek: omtrekGesloten(dicht) };
+  }
+
+  // ---------- opgave ----------
+  function nieuweOpgave(niveau, rng, vlak) {
+    const kader = { x: vlak.w * 0.03, y: vlak.h * 0.05, w: vlak.w * 0.94, h: vlak.h * 0.66 };
+    const u = Math.min(kader.w, kader.h);
+    const mid = { x: kader.x + kader.w / 2, y: kader.y + kader.h / 2 };
+    const lang = kader.w >= kader.h ? 'x' : 'y';
+    const vormen = [];
+
+    // Positie langs de lange as (fractie) en de korte as (jitter).
+    const op = (t, jit) => {
+      const j = rng.tussen(-jit, jit);
+      return lang === 'x'
+        ? { x: kader.x + kader.w * t, y: mid.y + j * kader.h }
+        : { x: mid.x + j * kader.w, y: kader.y + kader.h * t };
+    };
+
+    if (niveau === 1) {
+      const soort = rng.kies(['cirkel', 'vierkant', 'driehoek']);
+      const v = basis(soort, rng.tussen(0.5, 0.62) * u, rng);
+      vormen.push(maakVorm(v.pts, mid.x + rng.tussen(-0.06, 0.06) * u, mid.y + rng.tussen(-0.05, 0.05) * u, v.naam));
+    } else if (niveau === 2) {
+      const soort = rng.kies(['rechthoek2:1', 'rechthoek1:3', 'driehoek2:1', 'driehoek1:3']);
+      const v = basis(soort, rng.tussen(0.66, 0.8) * u, rng);
+      vormen.push(maakVorm(v.pts, mid.x + rng.tussen(-0.06, 0.06) * u, mid.y + rng.tussen(-0.04, 0.04) * u, v.naam));
+    } else if (niveau === 3) {
+      const soort = rng.kies(['onregelmatig', 'onregelmatig', 'druppel', 'ster']);
+      const v = basis(soort, rng.tussen(0.6, 0.76) * u, rng);
+      vormen.push(maakVorm(v.pts, mid.x + rng.tussen(-0.05, 0.05) * u, mid.y + rng.tussen(-0.04, 0.04) * u, v.naam));
+    } else if (niveau === 4) {
+      const pool = ['cirkel', 'vierkant', 'driehoek', 'rechthoek2:1'];
+      const a = rng.kies(pool);
+      let b = rng.kies(pool);
+      if (b === a) b = pool[(pool.indexOf(a) + 1 + Math.floor(rng() * 3)) % pool.length];
+      const pa = op(rng.tussen(0.25, 0.3), 0.1), pb = op(rng.tussen(0.7, 0.75), 0.1);
+      for (const [soort, p] of [[a, pa], [b, pb]]) {
+        const v = basis(soort, rng.tussen(0.28, 0.4) * u, rng);
+        vormen.push(maakVorm(v.pts, p.x, p.y, v.naam));
+      }
+    } else if (rng() < 0.5) {
+      // Huisje: muur (vierkant), dak (driehoek) en deur (rechthoek).
+      const w = rng.tussen(0.42, 0.52) * u, dakH = w * 0.45, dh = w * 0.5, dw = w * 0.24;
+      const totH = w + dakH, cx = mid.x + rng.tussen(-0.05, 0.05) * u, top = mid.y - totH / 2 + rng.tussen(-0.03, 0.03) * u;
+      vormen.push(maakVorm(rechthoek(w, w), cx, top + dakH + w / 2, 'muur'));
+      vormen.push(maakVorm(driehoek(w * 1.18, dakH), cx, top + dakH / 2, 'dak'));
+      vormen.push(maakVorm(rechthoek(dw, dh), cx, top + dakH + w - dh / 2, 'deur'));
+    } else {
+      const pool = ['cirkel', 'vierkant', 'driehoek', 'rechthoek2:1'];
+      const ts = [0.2, 0.5, 0.8];
+      for (let k = 0; k < 3; k++) {
+        const p = op(ts[k] + rng.tussen(-0.02, 0.02), 0.1);
+        const v = basis(rng.kies(pool), rng.tussen(0.22, 0.27) * u, rng);
+        vormen.push(maakVorm(v.pts, p.x, p.y, v.naam));
+      }
+    }
+
+    // Het score-blok komt in de lege strook onder het kader.
+    const plek = { x: vlak.w / 2, y: kader.y + kader.h + (vlak.h - kader.y - kader.h) * 0.42 };
+    return {
+      niveau, kader, u, vormen, plek,
+      verbergNa: TOON[niveau],
+      anker: ANKER[niveau] ? { x: vormen[0].dicht[0].x, y: vormen[0].dicht[0].y } : null,
+      animeer: true,
+    };
+  }
+
+  // ---------- tekenen ----------
+  function pad(ctx, pts) {
+    ctx.beginPath();
+    pts.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
+    ctx.closePath();
+  }
+
+  function teken(ctx, o, vlak, info) {
+    const k = o.kader, kl = vlak.kleur;
+    ctx.save();
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.setLineDash([8, 6]);
+    ctx.strokeStyle = kl.hulpZacht;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(k.x, k.y, k.w, k.h);
+    ctx.setLineDash([]);
+
+    if (!info.verborgen) {
+      o.animeer = true;
+      ctx.strokeStyle = kl.hulp;
+      ctx.lineWidth = 3;
+      for (const v of o.vormen) { pad(ctx, v.dicht); ctx.stroke(); }
+      // Aftelbalk boven het kader.
+      const f = H.clamp(1 - info.sinds / o.verbergNa, 0, 1);
+      const bw = k.w * 0.5, bx = k.x + (k.w - bw) / 2, by = Math.max(4, k.y * 0.4);
+      ctx.lineWidth = 5;
+      ctx.strokeStyle = kl.hulpZacht;
+      ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(bx + bw, by); ctx.stroke();
+      if (f > 0) {
+        ctx.strokeStyle = kl.accent;
+        ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(bx + bw * f, by); ctx.stroke();
+      }
+    } else {
+      o.animeer = false;
+    }
+
+    if (o.anker) {
+      const s = 0.025 * o.u;
+      ctx.strokeStyle = kl.accent;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(o.anker.x - s, o.anker.y); ctx.lineTo(o.anker.x + s, o.anker.y);
+      ctx.moveTo(o.anker.x, o.anker.y - s); ctx.lineTo(o.anker.x, o.anker.y + s);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // ---------- klaar? ----------
+  function strekenGesloten(streek, o) {
+    const p = streek.punten;
+    if (p.length < 8) return false;
+    const b = bbox(p), diag = Math.hypot(b.w, b.h);
+    const kleinste = Math.min(...o.vormen.map((v) => Math.hypot(v.bb.w, v.bb.h)));
+    if (diag < 0.5 * kleinste) return false;
+    return H.afstand(p[0], p[p.length - 1]) <= 0.08 * diag;
+  }
+
+  function wijsToe(o, streken) {
+    const groepen = o.vormen.map(() => []);
+    for (const s of streken) {
+      const c = middelpunt(H.herbemonster(s.punten, 4));
+      let best = 0, bd = Infinity;
+      o.vormen.forEach((v, i) => { const d = H.afstand(c, v.c); if (d < bd) { bd = d; best = i; } });
+      groepen[best].push(s);
+    }
+    return groepen;
+  }
+
+  function isKlaar(o, streken) {
+    if (!streken.length || !strekenGesloten(streken[streken.length - 1], o)) return false;
+    const groepen = wijsToe(o, streken);
+    return groepen.every((g) => g.some((s) => strekenGesloten(s, o)));
+  }
+
+  // ---------- nakijken ----------
+  function vergelijkVorm(v, groep, o) {
+    const kd = Math.hypot(o.kader.w, o.kader.h);
+    const gesorteerd = groep.slice().sort((a, b) => a.punten[0].t - b.punten[0].t);
+    const ruw = [];
+    for (const s of gesorteerd) for (const p of s.punten) ruw.push(p);
+    const D = resSluit(ruw, N);
+    const dc = middelpunt(D), bD = bbox(D);
+
+    const dx = dc.x - v.c.x, dy = dc.y - v.c.y;
+    const pos = H.lin(Math.hypot(dx, dy) / kd, 0.01, 0.15);
+
+    const r = Math.sqrt(Math.max(bD.w * bD.h, 1) / Math.max(v.bb.w * v.bb.h, 1));
+    const maat = H.lin(Math.abs(Math.log(r)), 0.03, 0.5);
+    const q = (Math.max(bD.w, 1) / Math.max(bD.h, 1)) / (v.bb.w / v.bb.h);
+
+    const Dn = normaliseer(D);
+    let best = Infinity;
+    for (const dir of [1, -1]) {
+      for (let k = 0; k < N; k++) {
+        let som = 0;
+        for (let i = 0; i < N; i++) {
+          const a = Dn[(((dir * i + k) % N) + N) % N], b = v.norm[i];
+          som += Math.hypot(a.x - b.x, a.y - b.y);
+        }
+        if (som / N < best) best = som / N;
+      }
+    }
+    const vorm = H.lin(best, 0.02, 0.12);
+
+    let hoek = null;
+    if (v.hoeken.length) {
+      const gez = detecteerHoeken(Dn);
+      let tot = 0;
+      for (const e of v.hoeken) {
+        let bk = null, bd = 0.4;
+        for (const g of gez) { const d = Math.hypot(g.x - e.x, g.y - e.y); if (d < bd) { bd = d; bk = g; } }
+        tot += bk ? H.lin(Math.abs(bk.draai - e.draai), 3, 25) : 0;
+      }
+      hoek = tot / v.hoeken.length;
+    }
+
+    const w = hoek === null ? [0.30, 0.25, 0.45, 0] : [0.25, 0.20, 0.35, 0.20];
+    const som = w[0] * pos + w[1] * maat + w[2] * vorm + w[3] * (hoek || 0);
+    // Een vorm die op de verkeerde plek of maat staat kan niet hoog scoren, ook al klopt de vorm.
+    const score = 100 * som * (0.55 + 0.45 * Math.min(pos, maat));
+
+    // Grote afwijkingen voor de uitslag.
+    const grens = 0.1 * Math.hypot(v.bb.w, v.bb.h), dichtGesloten = v.dicht.concat([v.dicht[0]]);
+    const fouten = D.filter((p) => H.polyAfstand(p, dichtGesloten) > grens).map((p) => ({ x: p.x, y: p.y }));
+
+    return { score, pos, maat, vorm, hoek, r, q, dx, dy, fouten, ontbreekt: false };
+  }
+
+  function nakijken(o, streken) {
+    const bruikbaar = streken.filter((s) => s.punten.length >= 2);
+    const kleinsteOmtrek = Math.min(...o.vormen.map((v) => v.omtrek));
+    const totaal = bruikbaar.reduce((s, st) => s + H.lengte(st.punten), 0);
+    if (bruikbaar.length < 1 || totaal < 0.4 * kleinsteOmtrek) return { ongeldig: 'Te kort, teken de hele vorm opnieuw.' };
+
+    const groepen = wijsToe(o, bruikbaar);
+    const res = o.vormen.map((v, i) => groepen[i].length && groepen[i].reduce((s, st) => s + H.lengte(st.punten), 0) > 0.2 * v.omtrek
+      ? vergelijkVorm(v, groepen[i], o)
+      : { score: 0, ontbreekt: true, fouten: [] });
+    const score = Math.round(H.clamp(H.gemiddelde(res.map((x) => x.score)), 0, 100));
+    return { score, tip: kiesTip(res, o, score), res, fouten: [].concat(...res.map((x) => x.fouten)) };
+  }
+
+  function kiesTip(res, o, score) {
+    const slecht = res.reduce((a, b) => (b.score < a.score ? b : a));
+    if (slecht.ontbreekt) return o.vormen.length > 1 ? 'Een vorm ontbreekt. Onthoud alle ' + o.vormen.length + ' vormen.' : 'Teken de hele vorm.';
+    const kand = [];
+    const rel = Math.max(Math.abs(slecht.dx) / o.kader.w, Math.abs(slecht.dy) / o.kader.h);
+    if (slecht.r < 0.8 || slecht.r > 1.25) kand.push([(1 - slecht.maat) * 0.2 + 0.3, slecht.r < 1 ? 'Te klein: teken groter, de vorm was ruimer.' : 'Te groot: teken kleiner, de vorm was compacter.']);
+    if (rel > 0.06) {
+      const horiz = Math.abs(slecht.dx) / o.kader.w >= Math.abs(slecht.dy) / o.kader.h;
+      const tekst = horiz
+        ? (slecht.dx < 0 ? 'Te ver naar links: begin verder naar rechts.' : 'Te ver naar rechts: begin verder naar links.')
+        : (slecht.dy < 0 ? 'Te ver naar boven: teken lager.' : 'Te ver naar onder: teken hoger.');
+      kand.push([(1 - slecht.pos) * 0.25 + 0.3, tekst]);
+    }
+    if (slecht.q < 0.85 || slecht.q > 1.18) kand.push([Math.min(1, Math.abs(Math.log(slecht.q)) / 0.5) * 0.35 + 0.2, 'Verhouding scheef: de vorm was ' + (slecht.q < 1 ? 'breder' : 'hoger') + ' dan jij tekende.']);
+    if (slecht.hoek !== null && slecht.hoek < 0.6) kand.push([(1 - slecht.hoek) * 0.2 + 0.25, 'Hoeken te rond of ontbrekend: zet scherp om in de hoek.']);
+    if (kand.length) { kand.sort((a, b) => b[0] - a[0]); return kand[0][1]; }
+    if (score >= 85) return slecht.hoek !== null ? 'Sterk, je hoekpunten zaten erop.' : 'Sterk, plek en maat kloppen.';
+    return 'Vorm wijkt af: let op de verhoudingen tussen de zijden.';
+  }
+
+  function tekenUitslag(ctx, o, streken, u, vlak) {
+    ctx.save();
+    ctx.lineJoin = 'round';
+    ctx.setLineDash([10, 8]);
+    ctx.strokeStyle = vlak.kleur.goed;
+    ctx.lineWidth = 2.5;
+    for (const v of o.vormen) { pad(ctx, v.dicht); ctx.stroke(); }
+    ctx.setLineDash([]);
+    ctx.fillStyle = vlak.kleur.fout;
+    for (const p of (u.fouten || [])) { ctx.beginPath(); ctx.arc(p.x, p.y, 3.5, 0, Math.PI * 2); ctx.fill(); }
+    ctx.restore();
+  }
+
+  Tekentrainer.registreer({
+    id: 'geheugen',
+    naam: 'Kijk, verberg, teken',
+    uitleg: 'Onthoud de vorm voordat hij verdwijnt en teken hem op dezelfde plek na.',
+    fundament: 'Observatie en visueel geheugen: plek, maat, verhoudingen en hoeken van een vorm inschatten.',
+    meerdereStreken: true,
+    stilNa: 2500,
+    toonUitslag: 2200,
+    nieuweOpgave,
+    teken,
+    isKlaar,
+    nakijken,
+    tekenUitslag,
+    scorePlek: (o) => o.plek,
+  });
+})();
+
+</script>
+<script>
+(function () {
+  const H = window.Hulp;
+  const $ = (id) => document.getElementById(id);
+  const doek = $('doek'), ctx = doek.getContext('2d');
+
+  // ---------- opslag (alleen gemak op dit apparaat) ----------
+  const opslag = {
+    lees(k, d) { try { const v = localStorage.getItem('tt.' + k); return v ? JSON.parse(v) : d; } catch (e) { return d; } },
+    schrijf(k, v) { try { localStorage.setItem('tt.' + k, JSON.stringify(v)); } catch (e) { /* geen opslag */ } },
+  };
+  const stand = (id) => opslag.lees('stand.' + id, { niveau: 1, scores: [], sindsWissel: 0, beste: 0 });
+
+  // ---------- thema-kleuren voor de canvas ----------
+  function kleuren() {
+    const cs = getComputedStyle(document.documentElement);
+    const v = (n) => cs.getPropertyValue(n).trim();
+    return { hulp: v('--guide'), hulpZacht: v('--guide-soft'), accent: v('--accent'), goed: v('--good'),
+      fout: v('--bad'), tekst: v('--fg'), tekstZacht: v('--fg-soft'), inkt: v('--ink'), papier: v('--paper'), waarschuwing: v('--warn') };
+  }
+
+  // ---------- menu ----------
+  const GROEPEN = [
+    { naam: 'Lijnen & vormen', ids: ['lijnen', 'curves', 'slingerlijn', 'cirkels', 'ellipsen'] },
+    { naam: 'Meten & richting', ids: ['hoeken', 'proporties', 'perspectief', 'dozen'] },
+    { naam: 'Oog & hand', ids: ['arcering', 'geheugen'] },
+  ];
+  const SVGNS = 'http://www.w3.org/2000/svg';
+  const ICONEN = {
+    lijnen: 'M4 24 L26 6',
+    curves: 'M3 22 C9 2 15 2 16 15 S24 28 27 8',
+    slingerlijn: 'M3 15 C6 6 9 6 12 15 S18 24 21 15 S25 6 28 15',
+    cirkels: 'M15 4a11 11 0 1 0 .01 0',
+    ellipsen: 'M15 7 C25 7 28 12 28 15 S25 23 15 23 S2 18 2 15 S5 7 15 7',
+    hoeken: 'M5 25 L5 5 M5 25 L26 25 M5 17 A8 8 0 0 1 13 25',
+    proporties: 'M5 6 H25 M5 24 H25 M15 6 V24 M10 12 H20',
+    perspectief: 'M3 25 L15 8 L27 25 M9 25 L15 8 L21 25 M3 25 H27',
+    dozen: 'M5 11 L15 6 L25 11 L25 22 L15 27 L5 22 Z M5 11 L15 16 L25 11 M15 16 V27',
+    arcering: 'M6 24 L14 6 M12 24 L20 6 M18 24 L26 6 M4 17 L9 6',
+    geheugen: 'M4 15 C9 7 21 7 26 15 C21 23 9 23 4 15 M15 11a4 4 0 1 0 .01 0',
+  };
+  function ikoon(id) {
+    const svg = document.createElementNS(SVGNS, 'svg');
+    svg.setAttribute('viewBox', '0 0 30 30');
+    svg.setAttribute('class', 'ico');
+    svg.setAttribute('aria-hidden', 'true');
+    svg.setAttribute('fill', 'none');
+    svg.setAttribute('stroke', 'currentColor');
+    svg.setAttribute('stroke-width', '1.8');
+    svg.setAttribute('stroke-linecap', 'round');
+    svg.setAttribute('stroke-linejoin', 'round');
+    const p = document.createElementNS(SVGNS, 'path');
+    p.setAttribute('d', ICONEN[id] || 'M5 15 H25');
+    svg.appendChild(p);
+    return svg;
+  }
+  function kaart(o) {
+    const s = stand(o.id);
+    const laatste = s.scores.slice(-10);
+    const b = document.createElement('button');
+    b.className = 'kaart';
+    b.type = 'button';
+    const naam = document.createElement('b'); naam.textContent = o.naam;
+    const fund = document.createElement('span'); fund.className = 'fund'; fund.textContent = o.fundament;
+    const onder = document.createElement('span'); onder.className = 'onder';
+    const niv = document.createElement('span'); niv.className = 'niv';
+    niv.setAttribute('role', 'img'); niv.setAttribute('aria-label', 'Niveau ' + s.niveau + ' van 5');
+    for (let i = 1; i <= 5; i++) { const t = document.createElement('i'); if (i <= s.niveau) t.className = 'aan'; niv.appendChild(t); }
+    const cijfers = document.createElement('span'); cijfers.className = 'cijfers';
+    if (laatste.length) { cijfers.innerHTML = '<em>gem.</em> ' + Math.round(H.gemiddelde(laatste)) + ' &middot; <em>beste</em> ' + s.beste; }
+    else { cijfers.textContent = 'nog niet geoefend'; cijfers.style.color = 'var(--fg-soft)'; }
+    onder.append(niv, cijfers);
+    b.append(naam, ikoon(o.id), fund, onder);
+    b.addEventListener('click', () => start(o));
+    return b;
+  }
+  function toonMenu() {
+    huidig = null;
+    $('oefening').hidden = true;
+    $('menu').hidden = false;
+    const lijst = $('lijst');
+    lijst.innerHTML = '';
+    const alle = Tekentrainer.oefeningen.slice();
+    const gebruikt = new Set();
+    const groepen = GROEPEN.map((g) => ({ naam: g.naam, items: g.ids.map((id) => alle.find((o) => o.id === id)).filter(Boolean) }));
+    groepen.forEach((g) => g.items.forEach((o) => gebruikt.add(o.id)));
+    const rest = alle.filter((o) => !gebruikt.has(o.id));
+    if (rest.length) groepen.push({ naam: 'Overig', items: rest });
+    groepen.forEach((g, gi) => {
+      if (!g.items.length) return;
+      const sec = document.createElement('section');
+      sec.className = 'groep';
+      const h = document.createElement('h2');
+      h.textContent = String(gi + 1).padStart(2, '0') + ' ' + g.naam;
+      const rij = document.createElement('div');
+      rij.className = 'rij';
+      g.items.forEach((o) => rij.appendChild(kaart(o)));
+      sec.append(h, rij);
+      lijst.appendChild(sec);
+    });
+  }
+  $('vingerAan').checked = opslag.lees('vinger', false);
+  $('vingerAan').addEventListener('change', (e) => opslag.schrijf('vinger', e.target.checked));
+
+  // ---------- oefening ----------
+  let huidig = null;   // { o, s, opgave, streken, fase, start, uitslag, actief }
+  let vlak = { w: 1, h: 1, pxPerMm: 96 / 25.4, kleur: kleuren() };
+  const rng = H.maakRng(Date.now());
+
+  function start(o) {
+    $('menu').hidden = true;
+    $('oefening').hidden = false;
+    $('oTitel').textContent = o.naam;
+    $('oUitleg').textContent = o.uitleg;
+    $('oUitleg').classList.remove('open');
+    $('klaar').hidden = !o.meerdereStreken;
+    huidig = { o, s: stand(o.id), streken: [], fase: 'tekenen' };
+    maat();
+    nieuweOpgave();
+  }
+
+  function nieuweOpgave() {
+    const h = huidig;
+    clearTimeout(h.verbergTimer);
+    h.streken = [];
+    h.actief = null;
+    h.uitslag = null;
+    h.fase = 'tekenen';
+    h.verborgen = false;
+    h.opgave = h.o.nieuweOpgave(h.s.niveau, rng, vlak);
+    window.__tt = h;
+    h.start = performance.now();
+    if (h.opgave.verbergNa) h.verbergTimer = setTimeout(() => { h.verborgen = true; teken(); }, h.opgave.verbergNa);
+    werkStand();
+    teken();
+  }
+
+  function werkStand() {
+    const s = huidig.s, laatste = s.scores.slice(-5);
+    $('oStand').innerHTML = '<b>Niv. ' + s.niveau + '</b>' + (laatste.length ? 'gem. ' + Math.round(H.gemiddelde(laatste)) : 'nieuw');
+  }
+
+  function zetNiveau(n, tekst) {
+    const s = huidig.s;
+    n = H.clamp(n, 1, 5);
+    if (n === s.niveau) return;
+    s.niveau = n;
+    s.sindsWissel = 0;
+    opslag.schrijf('stand.' + huidig.o.id, s);
+    melding(tekst || 'Niveau ' + n);
+    werkStand();
+  }
+  $('nivMin').addEventListener('click', () => { zetNiveau(huidig.s.niveau - 1); nieuweOpgave(); });
+  $('nivPlus').addEventListener('click', () => { zetNiveau(huidig.s.niveau + 1); nieuweOpgave(); });
+  $('oUitleg').addEventListener('click', (e) => e.currentTarget.classList.toggle('open'));
+  $('terug').addEventListener('click', toonMenu);
+  $('volScherm').addEventListener('click', () => {
+    const el = document.documentElement;
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+    else if (el.requestFullscreen) el.requestFullscreen({ navigationUI: 'hide' }).catch(() => {});
+  });
+
+  let meldTimer = 0;
+  function melding(t) {
+    const m = $('melding');
+    m.textContent = t;
+    m.classList.add('zicht');
+    clearTimeout(meldTimer);
+    meldTimer = setTimeout(() => m.classList.remove('zicht'), 1600);
+  }
+
+  function nakijken() {
+    const h = huidig;
+    if (!h || h.fase !== 'tekenen' || !h.streken.length) return;
+    let u;
+    try { u = h.o.nakijken(h.opgave, h.streken, vlak); }
+    catch (e) { console.error(e); u = { ongeldig: 'Er ging iets mis bij het nakijken.' }; }
+    if (u && !u.ongeldig && !Number.isFinite(u.score)) { console.error('Ongeldige score', u); u = { ongeldig: 'Er ging iets mis bij het nakijken.' }; }
+    if (!u || u.ongeldig) {
+      melding((u && u.ongeldig) || 'Probeer opnieuw');
+      h.streken = [];
+      teken();
+      return;
+    }
+    u.score = Math.round(H.clamp(u.score, 0, 100));
+    h.uitslag = u;
+    h.fase = 'uitslag';
+    h.uitslagT = performance.now();
+
+    const s = h.s;
+    s.scores.push(u.score);
+    if (s.scores.length > 200) s.scores.shift();
+    s.sindsWissel++;
+    s.beste = Math.max(s.beste || 0, u.score);
+    const l5 = s.scores.slice(-5), l3 = s.scores.slice(-3);
+    let wissel = 0;
+    if (s.sindsWissel >= 5 && H.gemiddelde(l5) >= 80 && s.niveau < 5) wissel = 1;
+    else if (s.sindsWissel >= 3 && l3.every((x) => x < 45) && s.niveau > 1) wissel = -1;
+    opslag.schrijf('stand.' + h.o.id, s);
+    teken();
+    setTimeout(() => {
+      if (huidig !== h) return;
+      if (wissel) zetNiveau(s.niveau + wissel, wissel > 0 ? 'Niveau omhoog: ' + (s.niveau + 1) : 'Even een niveau terug: ' + (s.niveau - 1));
+      nieuweOpgave();
+    }, h.o.toonUitslag || 1400);
+    werkStand();
+  }
+  $('klaar').addEventListener('click', nakijken);
+
+  // ---------- tekenen ----------
+  function maat() {
+    const r = $('vlak').getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    doek.width = Math.round(r.width * dpr);
+    doek.height = Math.round(r.height * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    vlak = { w: r.width, h: r.height, pxPerMm: 96 / 25.4, kleur: kleuren() };
+  }
+
+  function tekenStreek(st) {
+    const p = st.punten;
+    ctx.strokeStyle = vlak.kleur.inkt;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    if (p.length === 1) { ctx.fillStyle = vlak.kleur.inkt; ctx.beginPath(); ctx.arc(p[0].x, p[0].y, 1.5, 0, 7); ctx.fill(); return; }
+    for (let i = 1; i < p.length; i++) {
+      ctx.lineWidth = 1.2 + 2.6 * ((p[i].p || 0.5) + (p[i - 1].p || 0.5)) / 2;
+      ctx.beginPath();
+      ctx.moveTo(p[i - 1].x, p[i - 1].y);
+      ctx.lineTo(p[i].x, p[i].y);
+      ctx.stroke();
+    }
+  }
+
+  function rondRect(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+  }
+  function breek(tekst, maxB) {
+    const regels = []; let r = '';
+    for (const w of String(tekst).split(/\s+/)) {
+      const t = r ? r + ' ' + w : w;
+      if (r && ctx.measureText(t).width > maxB) { regels.push(r); r = w; } else r = t;
+    }
+    if (r) regels.push(r);
+    return regels.slice(0, 3);
+  }
+  function tekenScore(u) {
+    const plek = huidig.o.scorePlek ? huidig.o.scorePlek(huidig.opgave, vlak) : { x: vlak.w / 2, y: vlak.h / 2 };
+    const sterk = u.score >= 80, matig = u.score >= 60;
+    const k = sterk ? vlak.kleur.goed : matig ? vlak.kleur.waarschuwing : vlak.kleur.fout;
+    const woord = sterk ? 'Sterk' : matig ? 'Bijna' : 'Oefen door';
+    const fam = getComputedStyle(document.body).fontFamily;
+    const mono = getComputedStyle(document.documentElement).getPropertyValue('--mono') || fam;
+    const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const t = reduced ? 1 : H.clamp((performance.now() - (huidig.uitslagT || 0)) / 380, 0, 1);
+    const e = 1 - Math.pow(1 - t, 3);
+    const grootte = Math.round(H.clamp(Math.min(vlak.w, vlak.h) * 0.13, 38, 84));
+    const tf = Math.round(H.clamp(grootte * 0.3, 13, 20));
+    const maxB = Math.min(vlak.w * 0.84, 340);
+    ctx.save();
+    ctx.font = '500 ' + tf + 'px ' + fam;
+    const regels = u.tip ? breek(u.tip, maxB - 28) : [];
+    const lh = tf * 1.3;
+    const cw = Math.max(regels.reduce((m, r) => Math.max(m, ctx.measureText(r).width), 0) + 28, grootte * 2.2, 120);
+    const ch = 8 + grootte + 20 + (regels.length ? regels.length * lh + 14 : 0) + 6;
+    const cx = H.clamp(plek.x, cw / 2 + 8, Math.max(cw / 2 + 8, vlak.w - cw / 2 - 8));
+    const cy = H.clamp(plek.y, ch / 2 + 8, Math.max(ch / 2 + 8, vlak.h - ch / 2 - 8));
+    ctx.translate(cx, cy + (1 - e) * 10);
+    ctx.scale(0.92 + 0.08 * e, 0.92 + 0.08 * e);
+    rondRect(-cw / 2, -ch / 2, cw, ch, 12);
+    ctx.globalAlpha = 0.94 * e; ctx.fillStyle = vlak.kleur.papier; ctx.fill();
+    ctx.globalAlpha = e; ctx.lineWidth = 2.5; ctx.strokeStyle = k; ctx.stroke();
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    let y = -ch / 2 + 8 + grootte / 2;
+    ctx.font = '800 ' + grootte + 'px ' + fam;
+    ctx.fillStyle = k;
+    ctx.fillText(String(u.score), 0, y);
+    y += grootte / 2 + 12;
+    ctx.font = '500 ' + Math.max(11, Math.round(tf * 0.8)) + 'px ' + mono;
+    ctx.fillStyle = vlak.kleur.tekstZacht;
+    ctx.fillText(woord.toUpperCase(), 0, y);
+    if (regels.length) {
+      y += 10 + lh / 2 + 4;
+      ctx.font = '500 ' + tf + 'px ' + fam;
+      ctx.fillStyle = vlak.kleur.tekst;
+      regels.forEach((r, i) => ctx.fillText(r, 0, y + i * lh));
+    }
+    ctx.restore();
+  }
+
+  function teken() {
+    const h = huidig;
+    if (!h) return;
+    ctx.clearRect(0, 0, vlak.w, vlak.h);
+    const info = { nu: performance.now(), sinds: performance.now() - h.start, verborgen: h.verborgen, streken: h.streken };
+    try { h.o.teken(ctx, h.opgave, vlak, info); } catch (e) { console.error(e); }
+    for (const st of h.streken) tekenStreek(st);
+    if (h.actief) tekenStreek(h.actief);
+    if (h.fase === 'uitslag' && h.uitslag) {
+      try { h.o.tekenUitslag && h.o.tekenUitslag(ctx, h.opgave, h.streken, h.uitslag, vlak); } catch (e) { console.error(e); }
+      tekenScore(h.uitslag);
+    }
+  }
+
+  (function lus() {
+    if (huidig && huidig.opgave && ((huidig.opgave.animeer && huidig.fase === 'tekenen') || (huidig.fase === 'uitslag' && performance.now() - (huidig.uitslagT || 0) < 450))) teken();
+    requestAnimationFrame(lus);
+  })();
+
+  // ---------- invoer ----------
+  const magTekenen = (e) => e.pointerType === 'pen' || $('vingerAan').checked;
+  let stilTimer = 0;
+
+  function punt(e) {
+    const r = doek.getBoundingClientRect();
+    const p = e.pointerType === 'pen' ? e.pressure : 0.5;
+    return { x: e.clientX - r.left, y: e.clientY - r.top, p, t: e.timeStamp };
+  }
+
+  doek.addEventListener('pointerdown', (e) => {
+    if (!huidig || huidig.fase !== 'tekenen' || !magTekenen(e)) return;
+    e.preventDefault();
+    clearTimeout(stilTimer);
+    doek.setPointerCapture(e.pointerId);
+    huidig.actief = { punten: [punt(e)], id: e.pointerId };
+    teken();
+  });
+  doek.addEventListener('pointermove', (e) => {
+    const a = huidig && huidig.actief;
+    if (!a || a.id !== e.pointerId) return;
+    const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
+    for (const ev of (evs.length ? evs : [e])) a.punten.push(punt(ev));
+    teken();
+  });
+  function einde(e) {
+    const h = huidig, a = h && h.actief;
+    if (!a || a.id !== e.pointerId) return;
+    a.punten.push(punt(e));
+    h.actief = null;
+    h.streken.push({ punten: a.punten });
+    teken();
+    const klaar = h.o.isKlaar ? h.o.isKlaar(h.opgave, h.streken) : !h.o.meerdereStreken;
+    if (klaar) nakijken();
+    else if (h.o.stilNa) stilTimer = setTimeout(nakijken, h.o.stilNa);
+  }
+  doek.addEventListener('pointerup', einde);
+  doek.addEventListener('pointercancel', einde);
+  window.addEventListener('contextmenu', (e) => { if (huidig) e.preventDefault(); });
+
+  window.addEventListener('resize', () => { if (huidig) { maat(); nieuweOpgave(); } });
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { vlak.kleur = kleuren(); teken(); });
+
+  toonMenu();
+})();
+</script>
+
+<script>
+// Offline: service worker registreren (alleen via http(s), niet vanaf een los bestand).
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+  navigator.serviceWorker.register('sw.js').catch(function () {});
+}
+</script>
