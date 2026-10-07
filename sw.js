@@ -1,5 +1,5 @@
 // Service worker: app-bestanden vooraf in de cache, lettertypes bij eerste gebruik.
-const CACHE = 'tekentrainer-9707dd7008';
+const CACHE = 'tekentrainer-6f243d4dee';
 const BESTANDEN = ["./", "index.html", "manifest.webmanifest", "icon-192.png", "icon-512.png", "icon-maskable-512.png"];
 
 self.addEventListener('install', (e) => {

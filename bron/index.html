@@ -139,6 +139,8 @@ window.Tekentrainer = { oefeningen: [], registreer(o) { this.oefeningen.push(o);
 <script src="oefeningen/geheugen.js"></script>
 <script src="extra/quickdraw-data.js"></script>
 <script src="extra/minigame.js"></script>
+<script src="extra/opensketch-data.js"></script>
+<script src="extra/ontwerpschets.js"></script>
 <script>
 (function () {
   const H = window.Hulp;
@@ -268,7 +270,7 @@ window.Tekentrainer = { oefeningen: [], registreer(o) { this.oefeningen.push(o);
 
   // ---------- menu ----------
   const GROEPEN = [
-    { naam: 'Spel', ids: ['minigame'] },
+    { naam: 'Spel', ids: ['minigame', 'ontwerpschets'] },
     { naam: 'Lijnen & vormen', ids: ['lijnen', 'curves', 'slingerlijn', 'cirkels', 'ellipsen'] },
     { naam: 'Meten & richting', ids: ['hoeken', 'proporties', 'perspectief', 'dozen'] },
     { naam: 'Oog & hand', ids: ['arcering', 'geheugen'] },
@@ -286,6 +288,7 @@ window.Tekentrainer = { oefeningen: [], registreer(o) { this.oefeningen.push(o);
     dozen: 'M5 11 L15 6 L25 11 L25 22 L15 27 L5 22 Z M5 11 L15 16 L25 11 M15 16 V27',
     arcering: 'M6 24 L14 6 M12 24 L20 6 M18 24 L26 6 M4 17 L9 6',
     minigame: 'M15 3 L18.5 11 L27 12 L20.5 17.5 L22.5 26 L15 21.5 L7.5 26 L9.5 17.5 L3 12 L11.5 11 Z',
+    ontwerpschets: 'M4 21 L15 26 L26 21 L26 11 L15 6 L4 11 Z M4 11 L15 16 L26 11 M15 16 V26 M2 24 L28 8',
     geheugen: 'M4 15 C9 7 21 7 26 15 C21 23 9 23 4 15 M15 11a4 4 0 1 0 .01 0',
   };
   function ikoon(id) {
